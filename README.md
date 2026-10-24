@@ -132,3 +132,8 @@ Tiers: free 2 rps, pro 20 rps, enterprise 100 rps; anonymous callers get 1 rps (
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Team
+
+- [@ozzyshaik](https://github.com/ozzyshaik): architecture, backend and infrastructure
+- [@nasiparveen006](https://github.com/nasiparveen006): business development and product
