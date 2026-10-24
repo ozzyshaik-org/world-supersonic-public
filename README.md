@@ -1,5 +1,11 @@
 # Worldchain Supersonic
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Rust](https://img.shields.io/badge/Rust-ExEx%20%7C%20tank--engine%20%7C%20edge-orange)
+![Go](https://img.shields.io/badge/Go-rpc--gateway%20%7C%20api-00ADD8)
+![ClickHouse](https://img.shields.io/badge/ClickHouse-storage-FFCC00)
+![World Chain](https://img.shields.io/badge/World%20Chain-chain%20id%20480-black)
+
 Real-time indexing and API infrastructure for **World Chain** (OP-Stack L2, chain id 480).
 It taps a reth node in-process, writes every block, transaction, call trace and log into ClickHouse,
 derives DeFi / token / MEV views from them, and serves the result over REST and WebSocket.
@@ -7,6 +13,17 @@ derives DeFi / token / MEV views from them, and serves the result over REST and 
 > **How this was built.** The architecture, data model and operational decisions are by the project owner.
 > AI coding agents assisted with implementation (code generation, refactoring, tests and review) under that
 > human direction. Treat the code as you would any fast-moving, partly machine-written codebase: read it before you rely on it.
+
+## ETHGlobal Mumbai 2026 (Continuity Track)
+
+This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). The pre-hackathon state is the
+annotated tag `baseline-pre-ethglobal-mumbai`; see [CONTINUITY.md](CONTINUITY.md) for the baseline-versus-new split.
+
+Planned during the hackathon:
+
+1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc.
+2. **World ID gating**: one API key per verified human.
+3. **ENS-native inputs**: ENS names accepted wherever an address is.
 
 ## Architecture
 
@@ -43,12 +60,12 @@ flowchart LR
 | `proto/` | protobuf | – | ExEx → tank-engine stream definition | – |
 | `docs/openapi.yaml` | OpenAPI 3.0 | – | REST surface of the gateway | – |
 
-## What is live and what is not
+## What is live and what is not (known limits)
 
 Measured read-only against the production deployment on 2026-10-24 (approximate figures, rounded):
 
 * The indexer was **at chain head** (indexed block ≈ 36.7 M, ingestion lag 0 blocks, node not syncing).
-* ClickHouse held **≈ 1.9 TiB** (≈ 28.8 billion rows over ~55 tables): ≈ 36.7 M blocks, ≈ 720 M transactions,
+* ClickHouse held nearly 30 billion rows across ~55 tables: ≈ 36.7 M blocks, ≈ 720 M transactions,
   ≈ 6.9 B logs, ≈ 17.6 B call traces, ≈ 2.1 B token transfers, ≈ 177 M DEX swaps, ≈ 1.1 M MEV rows.
 * Ingestion into this database started **2026-03-15** (earliest ingest timestamp); chain history before that was backfilled.
 
