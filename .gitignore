@@ -1,0 +1,42 @@
+# secrets / local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jwt
+jwt*
+secrets/
+
+# build output
+/target/
+**/target/
+/bin/
+build/
+*.exe
+*.so
+*.o
+
+# python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# logs, backups, scratch
+*.log
+*.bak
+*.bak*
+*.orig
+*.tmp
+backups/
+
+# chain data and node config (never commit)
+genesis*.json
+rollup*.json
+*.sock
+
+# editor / agent tooling
+.idea/
+.vscode/
+.DS_Store

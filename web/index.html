@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supersonic Worldchain - Contract CFG Visualizer</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #0d1117; color: #c9d1d9; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        header { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .logo { font-weight: 700; color: #58a6ff; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+        .search-box { flex: 1; display: flex; gap: 8px; max-width: 650px; }
+        input[type="text"] { flex: 1; background: #0d1117; border: 1px solid #30363d; color: #f0f6fc; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 0.9rem; }
+        input[type="text"]:focus { outline: none; border-color: #58a6ff; }
+        button { background: #238636; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #2ea043; }
+        button.secondary { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; }
+        button.secondary:hover { background: #30363d; }
+        #status { font-size: 0.85rem; color: #8b949e; }
+        #graph-container { flex: 1; width: 100%; height: 100%; position: relative; background: #0d1117; }
+        #graph { width: 100%; height: 100%; }
+        #graph svg { width: 100%; height: 100%; }
+        .node polygon, .node path, .node rect { fill: #161b22 !important; stroke: #58a6ff !important; stroke-width: 1.5px !important; }
+        .node text { fill: #f0f6fc !important; font-family: monospace !important; font-size: 11px !important; }
+        .edge path { stroke: #8b949e !important; stroke-width: 1.5px !important; }
+        .edge polygon { fill: #8b949e !important; stroke: #8b949e !important; }
+        .info-panel { position: absolute; bottom: 20px; right: 20px; background: rgba(22, 27, 34, 0.9); border: 1px solid #30363d; padding: 12px 16px; border-radius: 8px; font-size: 0.8rem; backdrop-filter: blur(4px); }
+    </style>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/@hpcc-js/wasm@2.14.1/dist/index.min.js" type="javascript/worker"></script>
+    <script src="https://unpkg.com/d3-graphviz@5.4.0/build/d3-graphviz.js"></script>
+</head>
+<body>
+    <header>
+        <div class="logo">⚡ Supersonic CFG Inspector</div>
+        <div class="search-box">
+            <input type="text" id="contractAddr" value="0x00000000000001e541f0d090868fbe24b59fbe06" placeholder="0x Contract Address">
+            <button onclick="loadCFG()">Render Graph</button>
+            <button class="secondary" onclick="resetZoom()">Reset View</button>
+        </div>
+        <span id="status">Ready</span>
+    </header>
+    <div id="graph-container">
+        <div id="graph"></div>
+        <div class="info-panel">
+            <div><strong id="nodeCount">0</strong> Nodes | <strong id="edgeCount">0</strong> Edges</div>
+            <div style="margin-top: 4px; color: #8b949e;">Pan: Drag | Zoom: Scroll</div>
+        </div>
+    </div>
+    <script>
+        let graphviz;
+        function initGraph() {
+            graphviz = d3.select("#graph")
+                .graphviz()
+                .transition(() => d3.transition().duration(500))
+                .logEvents(false)
+                .fit(true);
+        }
+
+        async function loadCFG() {
+            const addr = document.getElementById("contractAddr").value.trim();
+            const status = document.getElementById("status");
+            if (!addr.startsWith("0x") || addr.length !== 42) {
+                status.innerText = "❌ Invalid EVM Address";
+                status.style.color = "#f85149";
+                return;
+            }
+
+            status.innerText = "⏳ Fetching CFG...";
+            status.style.color = "#58a6ff";
+
+            try {
+                const res = await fetch(`/v1/contract/${addr}/cfg/raw`);
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+                }
+                const dot = await res.text();
+                status.innerText = "⚡ Rendering Graphviz...";
+
+                graphviz.renderDot(dot, () => {
+                    status.innerText = "✅ Render Complete";
+                    status.style.color = "#3fb950";
+                    
+                    const nodes = d3.selectAll(".node").nodes().length;
+                    const edges = d3.selectAll(".edge").nodes().length;
+                    document.getElementById("nodeCount").innerText = nodes;
+                    document.getElementById("edgeCount").innerText = edges;
+                });
+            } catch (err) {
+                status.innerText = `❌ Error: ${err.message}`;
+                status.style.color = "#f85149";
+            }
+        }
+
+        function resetZoom() {
+            if (graphviz) {
+                graphviz.resetZoom();
+            }
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            initGraph();
+            loadCFG();
+        });
+    </script>
+</body>
+</html>

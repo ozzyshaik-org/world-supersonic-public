@@ -1,0 +1,321 @@
+# Generated 2026-10-24 from the gateway's live /openapi.json (server address removed),
+# extended with routes registered in cmd/rpc-gateway/main.go but absent from the embedded spec.
+openapi: 3.0.3
+info:
+  title: Supersonic World Chain RPC API Gateway
+  description: High-throughput REST and JSON-RPC API Gateway for World Chain L2 block, transaction, and address state lookups.
+  version: 1.0.0
+servers:
+- url: http://localhost:8081
+  description: Local gateway
+paths:
+  /ws:
+    get:
+      summary: Real-Time WebSocket Telemetry Stream (served by the edge / supersonic-api services on their own ports, not
+        by this gateway)
+      description: Establishes a low-latency persistent WebSocket connection for real-time L2 block headers, pending transactions,
+        and DEX swap telemetry stream.
+      operationId: subscribeWebSocketTelemetry
+      responses:
+        '101':
+          description: Switching Protocols - WebSocket stream connection successfully established.
+  /v1/tokens/transfers:
+    get:
+      summary: Get Indexed ERC-20 / ERC-721 Token Transfers
+      description: Returns indexed token transfer records filtered by wallet address or token contract address.
+      operationId: getTokenTransfers
+      parameters:
+      - name: token
+        in: query
+        schema:
+          type: string
+        description: Token Contract EVM Address (0x...)
+      - name: address
+        in: query
+        schema:
+          type: string
+        description: Wallet EVM Address (from/to)
+      responses:
+        '200':
+          description: Successful token transfers array
+  /v1/dex/swaps:
+    get:
+      summary: Get Real-Time DEX Swap Telemetry
+      description: Returns real-time DEX swap events (Uniswap v3 / Aerodrome) filtered by liquidity pool or trader address.
+      operationId: getDexSwaps
+      parameters:
+      - name: pool
+        in: query
+        schema:
+          type: string
+        description: DEX Pool EVM Address (0x...)
+      - name: address
+        in: query
+        schema:
+          type: string
+        description: Trader Wallet EVM Address
+      responses:
+        '200':
+          description: Successful DEX swaps array
+  /v1/block/latest:
+    get:
+      summary: Get Latest L2 Block Header
+      description: Returns the latest indexed World Chain L2 block number, block hash, and timestamp with sub-millisecond
+        singleflight cache resolution.
+      operationId: getLatestBlock
+      responses:
+        '200':
+          description: Successful block header payload
+          headers:
+            X-Cache-Lookup:
+              schema:
+                type: string
+              description: Cache resolution status (HIT-L1L2, SHARDED-MISS-REPAIRED, MISS-FALLBACK-SUCCESS)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockPayload'
+              example:
+                block_number: 32656560
+                block_hash: '0x7d12790030888ddb2883d3cbea341eb422ad34f29b34da9e823b15693d974c2e'
+                timestamp: '2026-07-21T19:24:03+05:30'
+        '429':
+          description: Too Many Requests (Token Bucket Rate Limiter Exceeded)
+        '500':
+          description: Internal Database Lookup Failure
+  /v1/balance:
+    get:
+      summary: Get EVM Address Balance
+      description: Returns the net native balance in Wei for any valid 42-character EVM address.
+      operationId: getAddressBalance
+      parameters:
+      - name: address
+        in: query
+        required: true
+        description: 42-character hex-encoded EVM address (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)
+        schema:
+          type: string
+          pattern: ^0x[0-9a-fA-F]{40}$
+      responses:
+        '200':
+          description: Native balance in Wei as string
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: '1500000000000000000'
+        '400':
+          description: Invalid Address Length or Malformed Specification
+        '429':
+          description: Too Many Requests
+  /v1/transactions:
+    get:
+      summary: Get User Transaction History
+      description: Returns up to 50 recent transactions associated with an EVM address.
+      operationId: getUserTransactions
+      parameters:
+      - name: address
+        in: query
+        required: true
+        description: 42-character hex-encoded EVM address
+        schema:
+          type: string
+          pattern: ^0x[0-9a-fA-F]{40}$
+      - name: limit
+        in: query
+        required: false
+        description: Maximum number of transactions to return (default 50)
+        schema:
+          type: integer
+          default: 50
+      responses:
+        '200':
+          description: Array of transaction records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          description: Malformed EVM Address Specification
+  /metrics:
+    get:
+      summary: Get Prometheus Metrics Telemetry
+      description: Exposes standard Prometheus metrics for gateway request totals, cache hits/misses, rate limit drops, and
+        Go runtime stats.
+      operationId: getPrometheusMetrics
+      responses:
+        '200':
+          description: Prometheus text format telemetry
+          content:
+            text/plain:
+              type: string
+  /v1/defi/events:
+    get:
+      summary: Universal DeFi events
+      description: Not listed in the running gateway's embedded OpenAPI spec as of 2026-10-24; documented here from the handler
+        source. Filter by contract address and/or event type; at least one is required.
+      parameters:
+      - name: contract
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Contract EVM address (0x...)
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Event type
+      responses:
+        '200': &id001
+          description: JSON array / object result
+        '400':
+          description: Missing/invalid filter
+  /v1/mev/analytics:
+    get:
+      summary: Detected MEV activity
+      description: Not listed in the running gateway's embedded OpenAPI spec as of 2026-10-24; documented here from the handler
+        source. Optional filters by MEV type and block number.
+      parameters:
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+        description: MEV type
+      - name: block
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Block number
+      responses: &id002
+        '200': *id001
+  /v1/portfolio:
+    get:
+      summary: Token portfolio for a wallet
+      description: Not listed in the running gateway's embedded OpenAPI spec as of 2026-10-24; documented here from the handler
+        source. Net non-zero token balances (up to 100).
+      parameters:
+      - name: address
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Wallet EVM address (0x...)
+      responses:
+        '200': *id001
+        '400':
+          description: Missing/invalid address
+  /v1/health/system:
+    get:
+      summary: Gateway/indexer health
+      description: Not listed in the running gateway's embedded OpenAPI spec as of 2026-10-24; documented here from the handler
+        source. Reports status, gateway uptime, latest indexed block and ingestion lag.
+      responses: *id002
+  /v1/auth/keys:
+    post:
+      summary: Provision an API key (admin only)
+      description: Not listed in the running gateway's embedded OpenAPI spec as of 2026-10-24; documented here from the handler
+        source. In this public repo the endpoint requires the X-Admin-Token header and is disabled (503) when ADMIN_TOKEN
+        is unset.
+      security:
+      - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - client_name
+              properties:
+                client_name:
+                  type: string
+                tier:
+                  type: string
+                  enum:
+                  - free
+                  - pro
+                  - enterprise
+      responses:
+        '201':
+          description: Key created
+        '401':
+          description: Bad admin token
+        '503':
+          description: ADMIN_TOKEN not configured
+  /openapi.json:
+    get:
+      summary: This spec (as embedded in the gateway)
+      responses: *id002
+  /docs:
+    get:
+      summary: Swagger UI
+      responses: *id002
+components:
+  schemas:
+    BlockPayload:
+      type: object
+      properties:
+        block_number:
+          type: integer
+          format: int64
+          example: 32656560
+        block_hash:
+          type: string
+          example: '0x7d12790030888ddb2883d3cbea341eb422ad34f29b34da9e823b15693d974c2e'
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-07-21T19:24:03+05:30'
+    TransactionResponse:
+      type: object
+      properties:
+        block_number:
+          type: integer
+          format: int64
+          example: 32656560
+        tx_hash:
+          type: string
+          example: '0xaab127f6a7b129b96d9295f78d136ccb9d43e4367ccaaa6ff66f659404fc3a4a'
+        from_address:
+          type: string
+          example: '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+        to_address:
+          type: string
+          example: '0x4200000000000000000000000000000000000006'
+        value_wei:
+          type: string
+          example: '1000000000000000000'
+        gas_used:
+          type: integer
+          format: int64
+          example: 21000
+        status:
+          type: integer
+          example: 1
+        ingested_at:
+          type: string
+          example: '2026-07-21 19:24:03'
+  securitySchemes:
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    ApiKeyQuery:
+      type: apiKey
+      in: query
+      name: api_key
+    AdminToken:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+      description: Shared secret from the ADMIN_TOKEN env var; required only for POST /v1/auth/keys.
+security:
+- {}
+- ApiKeyHeader: []
+- ApiKeyQuery: []

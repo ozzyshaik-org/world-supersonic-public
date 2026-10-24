@@ -1,0 +1,65 @@
+[package]
+name    = "worldchain-exex"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[[bin]]
+name = "worldchain-exex"
+path = "src/main.rs"
+
+[dependencies]
+tokio        = { version = "1",   features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync", "net"] }
+futures      = "0.3"
+tonic        = "0.11"
+prost        = "0.12"
+hex          = "0.4"
+eyre         = "0.6"
+serde_json   = "1"
+
+# --- reth pin ---------------------------------------------------------------
+# Production builds against a local checkout of reth at commit 27a8c0f (upstream,
+# 2025-11-18). That checkout is a locally modified copy (its directory name refers
+# to a "cifs-stall" workaround); the local modifications are NOT included here, and
+# this plain git pin of upstream has NOT been build-verified. See exex/README.md.
+reth                     = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-exex                = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-exex-types          = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-primitives          = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-primitives-traits   = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-provider            = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-optimism-node       = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-optimism-cli        = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-optimism-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-chainspec           = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-optimism-chainspec  = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-revm                = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-evm                 = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-optimism-evm        = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-stages-types        = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+reth-db                  = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
+
+revm             = { version = "=31.0.2", features = ["std", "serde"] }
+revm-inspectors  = { version = "=0.32.0", features = ["serde"] }
+
+alloy-consensus  = { version = "=1.0.41", default-features = false }
+alloy-primitives = { version = "=1.4.1",  default-features = false }
+alloy-rlp        = { version = "=0.3.10", default-features = false }
+alloy-eips       = { version = "=1.0.41", default-features = false }
+alloy-evm        = { version = "=0.23.0", default-features = false }
+
+hickory-resolver = { version = "0.24.1", features = ["tokio-runtime", "system-config"] }
+vergen           = { version = "=9.0.4",  features = ["build", "cargo", "emit_and_set"] }
+vergen-git2      = { version = "=1.0.5" }
+op-alloy-flz     = "0.13.1"
+
+[build-dependencies]
+tonic-build     = "0.11"
+vergen          = { version = "=9.0.4", features = ["build", "cargo", "emit_and_set"] }
+vergen-git2     = { version = "=1.0.5" }
+alloy-tx-macros = { version = "=1.0.41" }
+
+[[bin]]
+name = "reset_checkpoint"
+path = "src/bin/reset_checkpoint.rs"

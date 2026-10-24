@@ -1,0 +1,72 @@
+syntax = "proto3";
+package nodestream;
+
+option go_package = "supersonic/proto";
+
+service NodeStream {
+  rpc Subscribe(SubscribeRequest) returns (stream BlockNotification) {}
+}
+
+message SubscribeRequest { uint64 start_block = 1; }
+
+message BlockNotification {
+  uint64 number = 1;
+  string hash = 2;
+  string parent_hash = 3;
+  uint64 timestamp = 4;
+  string miner = 5;
+  uint64 gas_limit = 6;
+  uint64 gas_used = 7;
+  uint64 base_fee = 8;
+  uint32 tx_count = 9;
+  uint32 size_bytes = 10;
+  repeated Transaction txs = 11;
+  repeated Trace traces = 12;
+  repeated Log logs = 13;
+}
+
+message Transaction {
+  uint32 tx_index = 1;
+  string hash = 2;
+  string from = 3;
+  string to = 4;
+  string value = 5;
+  uint64 gas_price = 6;
+  uint64 max_fee_per_gas = 7;
+  uint64 max_priority_fee = 8;
+  uint64 gas_limit = 9;
+  uint64 gas_used = 10;
+  uint64 nonce = 11;
+  uint32 tx_type = 12;
+  string input = 13;
+  uint32 status = 14;
+  string l1_fee = 15;
+  uint64 l1_gas_price = 16;
+  string mint_wei = 17;
+  bool is_system_tx = 18;
+}
+
+message Trace {
+  uint32 tx_index = 1;
+  string tx_hash = 2;
+  string from_address = 3;
+  string to_address = 4;
+  string value_wei = 5;
+  string input_data = 6;
+  string output_data = 7;
+  uint64 gas = 8;
+  uint64 gas_used = 9;
+  string trace_type = 10;
+  string call_type = 11;
+  string revert_reason = 12;
+  uint32 trace_index = 13;
+}
+
+message Log {
+  string tx_hash = 1;
+  uint32 tx_index = 2;
+  uint32 log_index = 3;
+  string address = 4;
+  repeated string topics = 5;
+  string data = 6;
+}
