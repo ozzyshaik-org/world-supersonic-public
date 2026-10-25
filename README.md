@@ -32,8 +32,8 @@ Each target has a definition of done. All new work is committed to this public r
 | Track | Feature (spec) | Done means |
 |---|---|---|
 | Arc: Bring Your Project to Arc | [x402](docs/hackathon/01-x402-arc-gateway.md) pay-per-request access, paid in USDC through Circle Gateway nanopayments, started from Arc Studio | A request to a paid `/v1` route returns HTTP 402, a USDC payment settles on Arc, and the retried request returns data. Demo URL and open-source code. |
-| World: IDKit / Agent Pass | One API key per verified human with World ID | A key is minted only after a World ID proof, a second key for the same human is refused, and the key works on `/v1`. |
-| ENS: ENSv2 into an existing project | ENS names accepted wherever an address is, and an ENS record used for account settings | ENSv2 names resolve on Ethereum mainnet in the API and the explorer, and a name's record drives a real setting. Live demo and open-source code. |
+| World: IDKit / Agent Pass | [One API key per verified human](docs/hackathon/02-world-id-gating.md) with World ID | A key is minted only after a World ID proof, a second key for the same human is refused, and the key works on `/v1`. |
+| ENS: ENSv2 into an existing project | [ENS names accepted wherever an address is, and an ENS record used for account settings](docs/hackathon/03-ens-integration.md) | ENSv2 names resolve on Ethereum mainnet in the API and the explorer, and a name's record drives a real setting. Live demo and open-source code. |
 
 ## Architecture
 
