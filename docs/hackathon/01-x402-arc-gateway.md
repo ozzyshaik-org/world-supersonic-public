@@ -44,31 +44,33 @@ stateDiagram-v2
 | State | Meaning | Charged |
 |---|---|---|
 | accepted | Authorization verified with Circle Gateway and recorded; no upstream call yet | No |
-| in-progress | One worker holds a lease and is calling the Go API | No |
+| `in_progress` | One worker holds a lease and is calling the Go API | No |
 | fulfilled | Upstream response stored with a receipt | Yes, once |
-| retryable-failure | The upstream call failed, timed out or lost its lease; the response is not stored | No |
+| `retryable_failure` | The upstream call failed, timed out or lost its lease; the response is not stored | No |
 | settlement (batched, settled) | A fulfilled authorization is included in a batch (batched) and the batch is confirmed on Arc through Circle Gateway (settled) | Once, in one batch |
 | void | The authorization's validity window closed before fulfillment; never settled | No |
 
 | From | To | Trigger |
 |---|---|---|
 | none | accepted | Valid authorization with a nonce not in the ledger |
-| accepted | in-progress | A worker takes the lease with a compare-and-set |
-| in-progress | fulfilled | Go API returns success; response and receipt stored in one transaction |
-| in-progress | retryable-failure | Go API error or timeout, or the lease expires without a stored response |
-| retryable-failure | in-progress | A request with the same nonce and fingerprint takes the lease |
+| accepted | `in_progress` | A worker takes the lease with a compare-and-set |
+| `in_progress` | fulfilled | Go API returns success; response and receipt stored in one transaction |
+| `in_progress` | `retryable_failure` | Go API error or timeout, or the lease expires without a stored response |
+| `retryable_failure` | `in_progress` | A request with the same nonce and fingerprint takes the lease |
 | fulfilled | batched | The settlement job adds the authorization to a batch |
 | batched | settled | Circle Gateway confirms the batch on Arc |
-| accepted, retryable-failure | void | The validity window closes |
+| accepted, `retryable_failure` | void | The validity window closes |
 
 Rules for a request that carries a nonce already in the ledger:
 
 | Same nonce and... | State | Result |
 |---|---|---|
 | same fingerprint | fulfilled | Return the stored response and receipt. No upstream call, no second charge. |
-| same fingerprint | accepted or retryable-failure | Take the lease, call the Go API and fulfill. One charge in total. |
-| same fingerprint | in-progress | Wait for the lease holder and return its stored response; if the lease expires first, take it over as for retryable-failure. One upstream call and one charge in total. |
+| same fingerprint | accepted or `retryable_failure` | Take the lease, call the Go API and fulfill. One charge in total. |
+| same fingerprint | `in_progress` | Wait for the lease holder and return its stored response; if the lease expires first, take it over as for `retryable_failure`. One logical fulfilled response and at most one settlement. Upstream reads are idempotent and may be repeated after a lease takeover, but duplicate upstream reads must never produce multiple charges or settlements. |
 | different fingerprint | any | Reject with `409`. No upstream call, no state change, no charge. |
+
+**Lease fencing:** fulfillment is committed with a conditional write that checks both the nonce and the current lease owner. A worker that no longer holds a valid lease must not store or directly return its upstream result as the fulfilled response. It discards that result and either returns the current stored result or instructs the client to retry. Every successful caller for the same nonce and fingerprint receives the same stored response and receipt.
 
 Only fulfilled authorizations enter a settlement batch. An authorization is settled at most once.
 
@@ -82,7 +84,8 @@ A route represented as paid is reachable only through the seller. Direct access 
 4. A request with an invalid authorization is not fulfilled and does not reach the Go API.
 5. State machine tests cover:
    - Retry after a lost response: the upstream call completes, the response is lost before it is stored, and the retry with the same nonce and fingerprint is fulfilled with one charge.
-   - Concurrent same-request retries: parallel requests with one nonce and fingerprint produce one upstream call, one charge and the same response for every caller.
+   - Concurrent same-request retries, when no lease failure occurs: parallel requests with one nonce and fingerprint produce one upstream call, one charge and the same response for every caller.
+   - Lease takeover failover: the first worker loses its lease while its upstream read is still running and a second worker takes over. A repeated upstream read is allowed. The test requires one stored result, one charge and at most one settlement, and fails on a second charge or settlement. The stale worker's late completion cannot overwrite the stored result or produce a second successful response. Concurrent and failover callers receive the same stored response and receipt, with one charge and at most one settlement.
    - Nonce reuse for a different request: the same nonce with a different fingerprint is rejected with `409` and does not reach the Go API.
    - Retry of a fulfilled request returns the stored response and receipt with no upstream call.
    - A voided authorization is never settled.
