@@ -20,6 +20,7 @@ Let any client, human or AI agent, pay per request for World Chain data in USDC,
 - Per-route price table: path to price in USDC.
 - Per-request onchain settlement is not claimed. The ledger separates an accepted authorization from a batch settlement that has reached Arc.
 - The demo has a public URL.
+- The frontend is a web UI built with Arc Studio, and the backend is the seller service. A client uses the web UI to request a paid route, sign the payment authorization and see the fulfilled response and receipt. The one-command CLI demo client is a supplemental test utility, not the sole frontend.
 
 ## Request fingerprint and ledger
 The request fingerprint is a SHA-256 hash over the HTTP method, the route path, the canonicalized query string and the request body. The ledger has one row per authorization nonce, holding the fingerprint, the payer, the price, the state, the lease expiry, and, once fulfilled, the stored response and a receipt. The insert of a new nonce is atomic, so concurrent first arrivals produce one row.
@@ -86,11 +87,11 @@ A route represented as paid is reachable only through the seller. Direct access 
    - Retry of a fulfilled request returns the stored response and receipt with no upstream call.
    - A voided authorization is never settled.
 6. Bypass evidence: an external probe from outside the host, with its output recorded in the evidence, shows direct access to `:8081` and any other proxy path to a paid route is refused or closed; or the route is a documented free tier.
-7. A demo client script performs the full flow in one command.
+7. The Arc Studio-built web UI performs the full flow end to end against the seller service. A demo client script also performs the full flow in one command as a supplemental test utility.
 8. Open-source code, README section and a live demo URL.
 9. Arc evidence is recorded in the README and the evidence log:
    - The Arc Studio URL (studio.arc.io) of the project.
    - Arc Studio shown in the demo.
-   - A frontend and a backend: the demo client or page and the seller service.
+   - An Arc Studio-built web frontend (web UI) and a backend (the seller service), both shown working together in the demo. The one-command CLI is a supplemental test utility and does not count as the frontend.
    - An architecture diagram of client, seller service, Circle Gateway, Go API and Arc.
    - Integration feedback on Arc Studio, Circle Gateway and Arc Testnet.

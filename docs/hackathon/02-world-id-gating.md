@@ -15,6 +15,9 @@ A World ID nullifier is scoped to a user, an app and an action. The same human h
 
 The IDKit guarantee covers self-service free-tier keys only. Keys minted by an operator with the admin token (`X-Admin-Token`) are a separate, documented exception. They carry an `operator` origin, have no verification record, are outside the guarantee, and are not used in the human-flow demo.
 
+### Trust decision and credential choice
+The trust moment is issuance of a limited free-tier API key, which is a Sybil-resistant benefit intended for one human per action-scoped nullifier. Proof of Human is the minimum sufficient credential for that decision. The flow does not request Passport/NFC or other stronger credentials because the application does not need legal identity, nationality or age assurance.
+
 ## Design
 - Key minting (`POST /v1/auth/keys`) by the self-service path requires a World ID proof from IDKit, verified server-side. The signing key for the request context is held only on the server.
 - Only Proof of Human proofs are accepted, and legacy proofs are rejected, so one human cannot mint once per proof generation.
@@ -48,6 +51,8 @@ A human who lost the key proves again with a fresh valid World ID proof bound to
 | `/ws` new connections | The gatekeeper in `cmd/api` checks key status at connect; a revoked key is refused. |
 | `/ws` open sessions | The gatekeeper re-checks the key of every open session at least every 5 seconds and closes the session of a revoked key with a policy-violation close code, so an open session ends within 10 seconds of revocation. |
 
+The 5-second `/v1` revocation and 10-second open-`/ws` closure are tested upper-bound targets under normal operating conditions, not production SLA guarantees.
+
 ### Edge access
 The guarantee holds only if every path to `/v1` and `/ws` passes the key check. Direct access to the gateway on `:8081`, to `cmd/api` on `:8090`, to the edge on `:8091` and any other proxy path is closed to the public network, or it applies the same key check. The edge accepts connections only from the gatekeeper.
 
@@ -63,8 +68,9 @@ The guarantee holds only if every path to `/v1` and `/ws` passes the key check. 
    - After recovery exactly one active key exists for the verification record.
    - A failure injected between revocation and issuance leaves the old key active and creates no replacement.
    - A replayed recovery proof and a proof with an unknown nullifier are refused.
-7. Revocation propagation tests: a revoked key is refused on `/v1` within 5 seconds; a `/ws` session that was open at revocation is closed within 10 seconds; a new `/ws` connection with the revoked key is refused.
+7. Revocation propagation tests: a revoked key is refused on `/v1` within 5 seconds; a `/ws` session that was open at revocation is closed within 10 seconds; a new `/ws` connection with the revoked key is refused. The 5-second and 10-second limits are tested upper-bound targets under normal operating conditions, not production SLA guarantees.
 8. Edge evidence: an external probe from outside the host, with its output recorded in the evidence, shows direct access to `:8081`, `:8090`, `:8091` and any other proxy path is refused or closed, or applies the same key check.
 9. A protected action returns an error and writes nothing when verification or the store is unavailable.
 10. The human-flow demo mints its key through the self-service IDKit path only. No operator or admin-minted key appears in it.
 11. Open-source code, README section and a live demo.
+12. Include a World ID integration debrief covering time to first success, friction encountered, missing capabilities or documentation, and the one improvement with the greatest impact.
