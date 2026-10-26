@@ -15,8 +15,8 @@ public. The first commit here is the snapshot, not the start of the project.
 |---|---|---|---|
 | Private development history | not public | Months of development of the full stack | Pre-existing |
 | Baseline snapshot | annotated tag `baseline-pre-ethglobal-mumbai` (commit `241af1f`, 24 Oct 2026) | Sanitized public snapshot of the full stack | Pre-existing |
-| Pre-kickoff documentation commits | the commits listed below (24-25 Oct 2026), plus any documentation-only commit made before the start tag | Documentation and CI only, no application code | Pre-existing |
-| Event work | commits after the annotated tag `ethglobal-mumbai-2026-start` | The three features below | Hackathon work |
+| Pre-kickoff documentation commits | the commits listed below (24-25 Oct 2026), plus any other commit made before the start tag | The listed commits are documentation and CI only; later pre-start commits are recorded here as they happen | Pre-existing |
+| Event work | commits after the annotated tag `ethglobal-mumbai-2026-start` | The committed features below | Hackathon work |
 
 ## Baseline (before the hackathon)
 
@@ -30,9 +30,9 @@ Everything reachable from the tag `baseline-pre-ethglobal-mumbai` is pre-existin
 
 ## Pre-kickoff commits after the baseline tag (pre-existing, not hackathon work)
 
-The commits below were made after the baseline tag and before the hackathon kickoff (seven as of 25 Oct 2026; later
-documentation-only commits made before the start tag are also pre-existing). They are pre-existing work.
-They touch Markdown files and one CI workflow only; no file under `cmd/`, `edge/`, `exex/`, `tank-engine/`,
+The commits below were made after the baseline tag and before the hackathon kickoff (seven as of 25 Oct 2026; any later
+commit made before the start tag, including an urgent security fix, is also pre-existing). They are pre-existing work.
+The seven listed commits touch Markdown files and one CI workflow only; no file under `cmd/`, `edge/`, `exex/`, `tank-engine/`,
 `sgip/`, `mev-detector/`, `schema/`, `proto/` or `web/` changed.
 
 | Commit | Date (IST) | Author | Subject |
@@ -55,16 +55,20 @@ Once the start tag exists, list them with:
 git log --oneline baseline-pre-ethglobal-mumbai..ethglobal-mumbai-2026-start
 ```
 
-## Hackathon work (starts at kickoff, 5 Nov 2026, 9:00 PM IST)
+## Hackathon work (official kickoff on 5 Nov 2026)
 
-At kickoff an annotated tag `ethglobal-mumbai-2026-start` is created on the last commit before the first event
-commit and pushed. Event work is everything after that tag. History is never rewritten and the tags are never moved.
+Immediately before event implementation begins, the then-current `main` is tagged with the annotated tag
+`ethglobal-mumbai-2026-start`, the tag is pushed, and its commit hash is recorded in `HACKATHON_LOG.md`. The tag does not
+exist yet. Event work is everything after that tag. History is never rewritten and the tags are never moved.
 
-The three features, each with a definition of done:
+The committed features, each with a definition of done:
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc.
-2. **World ID gating**: one API key per verified human.
-3. **ENS-native inputs**: ENS names accepted wherever an address is.
+2. **World ID gating with IDKit**: one API key per verified human.
+
+Optional stretch, not committed: World Agent Pass, a separate official integration. No eligibility is claimed unless its
+complete verification journey is built. ENS is not part of the planned work; its spec in `docs/hackathon/` is retained only
+as dropped pre-kickoff documentation.
 
 To see only the event changes:
 

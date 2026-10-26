@@ -17,14 +17,13 @@ derives DeFi / token / MEV views from them, and serves the result over REST and 
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 
 This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated
-tag `baseline-pre-ethglobal-mumbai` plus the documentation-only commits made before kickoff. Event work is everything after
-the annotated tag `ethglobal-mumbai-2026-start`, which is created at kickoff. See [CONTINUITY.md](CONTINUITY.md) for the full split.
+tag `baseline-pre-ethglobal-mumbai` plus the commits made before the start tag (documentation and CI so far). Event work is everything after
+the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
 Planned during the hackathon:
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc.
-2. **World ID gating**: one API key per verified human.
-3. **ENS-native inputs**: ENS names accepted wherever an address is.
+2. **World ID gating with IDKit**: one API key per verified human.
 
 ### Partner prize targets (Continuity)
 
@@ -32,9 +31,8 @@ Each target has a definition of done. All new work is committed to this public r
 
 | Track | Feature (spec) | Done means |
 |---|---|---|
-| Arc: Bring Your Project to Arc | [x402](docs/hackathon/01-x402-arc-gateway.md) pay-per-request access, paid in USDC through Circle Gateway nanopayments, started from Arc Studio | A request to a paid `/v1` route returns HTTP 402, a USDC payment settles on Arc, and the retried request returns data. Demo URL and open-source code. |
-| World: IDKit / Agent Pass | [One API key per verified human](docs/hackathon/02-world-id-gating.md) with World ID | A key is minted only after a World ID proof, a second key for the same human is refused, and the key works on `/v1`. |
-| ENS: ENSv2 into an existing project | [ENS names accepted wherever an address is, and an ENS record used for account settings](docs/hackathon/03-ens-integration.md) | ENSv2 names resolve on Ethereum mainnet in the API and the explorer, and a name's record drives a real setting. Live demo and open-source code. |
+| Arc: Bring Your Project to Arc | [x402](docs/hackathon/01-x402-arc-gateway.md) pay-per-request access, paid in USDC through Circle Gateway nanopayments, started from Arc Studio | A request to a paid `/v1` route returns HTTP 402; the client retries with a signed payment authorization; the seller accepts it and fulfills the request; accepted authorizations are later settled in batch through Circle Gateway on Arc. Per-request onchain settlement is not claimed. Demo URL and open-source code. |
+| World: Best IDKit use case | [One API key per verified human](docs/hackathon/02-world-id-gating.md) with World ID | A key is minted only after a World ID proof, a second key for the same human is refused, and the key works on `/v1`. |
 
 ## Architecture
 
