@@ -20,7 +20,7 @@ This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2
 tag `baseline-pre-ethglobal-mumbai` plus the commits made before the start tag (documentation and CI so far). Event work is everything after
 the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
-Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (AI disclosure, owner confirmations pending), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet) and [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo).
+Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory remains pending before submission), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet) and [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo).
 
 Planned during the hackathon (committed scope—specifications only, not yet implemented):
 
