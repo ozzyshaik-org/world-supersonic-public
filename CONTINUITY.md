@@ -46,7 +46,7 @@ The seven listed commits touch Markdown files and one CI workflow only; no file 
 | `5419782` | 2026-10-25 10:39 | ozzyshaik | ci: build and vet Go services |
 
 Every commit that will be reachable from the tag `ethglobal-mumbai-2026-start` (not yet created; see below) is pre-existing. The feature specs in
-`docs/hackathon/` are part of this pre-kickoff documentation. They describe what will be
+`docs/hackathon/` are part of this pre-kickoff documentation. They are committed scope—specifications only, not yet implemented. They describe what will be
 built; the implementation is event work.
 
 Once the start tag exists, list them with:
@@ -61,11 +61,11 @@ Immediately before event implementation begins, the then-current `main` is tagge
 `ethglobal-mumbai-2026-start`, the tag is pushed, and its commit hash is recorded in `HACKATHON_LOG.md`. The tag does not
 exist yet. Event work is everything after that tag. History is never rewritten and the tags are never moved.
 
-The committed features, each with a definition of done, in scope order:
+The committed scope—specifications only, not yet implemented—is three features, each with a definition of done, in scope order:
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc (core priority).
-2. **World ID gating with IDKit**: one API key per verified human (core priority).
-3. **ENS name inputs for address parameters** (third priority): attempted after the Arc and IDKit flows work end to end, with their demos, tests and evidence complete. See `docs/hackathon/03-ens-integration.md`.
+2. **World ID gating with IDKit**: one active self-service free-tier key per action-scoped nullifier (core priority).
+3. **ENS name inputs for `/v1/balance` and `/v1/transactions`** (third priority): attempted after the Arc and IDKit flows work end to end, with their demos, tests and evidence complete. See `docs/hackathon/03-ens-integration.md`.
 
 Optional stretch, not committed: World Agent Pass, a separate official integration, never conflated with IDKit. No eligibility is claimed unless its
 complete verification journey is built.
@@ -74,11 +74,9 @@ Partner prize targets:
 
 | Track | Priority | Eligibility |
 |---|---|---|
-| Arc: Bring Your Project to Arc | 1, core | Defined by the done criteria in `docs/hackathon/01-x402-arc-gateway.md` |
-| World: Best IDKit use case | 2, core | Defined by the done criteria in `docs/hackathon/02-world-id-gating.md` |
-| ENS | 3 | Third priority; eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way |
-
-Editing note: an earlier version of this section (PR #3) described ENS as dropped. The owner decision since then keeps ENS as third-priority scope; this section and `docs/hackathon/03-ens-integration.md` supersede that wording.
+| Arc: Bring Your Project to Arc (current prize target) | 1, core | Defined by the done criteria in `docs/hackathon/01-x402-arc-gateway.md` |
+| World: Best IDKit use case (current prize target) | 2, core | Defined by the done criteria in `docs/hackathon/02-world-id-gating.md` |
+| ENS (conditional prize consideration) | 3 | Third priority; no prize claim. Eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way |
 
 To see only the event changes:
 

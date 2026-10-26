@@ -20,23 +20,23 @@ This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2
 tag `baseline-pre-ethglobal-mumbai` plus the commits made before the start tag (documentation and CI so far). Event work is everything after
 the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
-Planned during the hackathon:
+Planned during the hackathon (committed scope—specifications only, not yet implemented):
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc.
-2. **World ID gating with IDKit**: one API key per verified human.
+2. **World ID gating with IDKit**: one active self-service free-tier key per action-scoped nullifier.
 3. **ENS name inputs for address parameters**, third priority: attempted after the Arc and IDKit flows work end to end, with their demos, tests and evidence complete ([spec](docs/hackathon/03-ens-integration.md)).
 
 Arc x402 and World ID IDKit are the core priorities. World Agent Pass is a separate official integration and an optional stretch, never conflated with IDKit.
 
 ### Partner prize targets (Continuity)
 
-Each target has a definition of done. All new work is committed to this public repository.
+Arc and World are the current prize targets. ENS is a conditional prize consideration. Each feature has a definition of done. All new work is committed to this public repository.
 
 | Track | Feature (spec) | Done means |
 |---|---|---|
-| Arc: Bring Your Project to Arc | [x402](docs/hackathon/01-x402-arc-gateway.md) pay-per-request access, paid in USDC through Circle Gateway nanopayments, started from Arc Studio | A request to a paid `/v1` route returns HTTP 402; the client retries with a signed payment authorization; the seller accepts it and fulfills the request; accepted authorizations are later settled in batch through Circle Gateway on Arc. Per-request onchain settlement is not claimed. Demo URL and open-source code. |
-| World: Best IDKit use case | [One API key per verified human](docs/hackathon/02-world-id-gating.md) with World ID | A key is minted only after a World ID proof, a second key for the same human is refused, and the key works on `/v1`. |
-| ENS | [ENS name inputs for address parameters](docs/hackathon/03-ens-integration.md) | Third priority; eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way. No prize eligibility is claimed for ordinary `.eth` resolution alone. Done criteria are in the spec. |
+| Arc: Bring Your Project to Arc | [x402](docs/hackathon/01-x402-arc-gateway.md) pay-per-request access, paid in USDC through Circle Gateway nanopayments, started from Arc Studio | A request to a paid `/v1` route returns HTTP 402; the client retries with a signed payment authorization; the seller accepts it and fulfills the request; a retry of the same request is never charged twice and nonce reuse for a different request is rejected; paid routes cannot be bypassed through direct access; fulfilled authorizations are later settled in batch through Circle Gateway on Arc. Per-request onchain settlement is not claimed. Arc Studio URL, Studio shown in the demo, frontend and backend, architecture diagram, integration feedback, demo URL and open-source code. |
+| World: Best IDKit use case | [One active self-service free-tier key per action-scoped nullifier](docs/hackathon/02-world-id-gating.md) with World ID | A self-service key is minted only after a World ID proof, a second self-service key for the same action-scoped nullifier is refused, lost-key recovery with a fresh proof replaces the key without a new nullifier, and a revoked key is refused on `/v1` and `/ws`. Operator-minted keys are a separate documented exception and are not part of the human-flow demo. |
+| ENS (conditional prize consideration) | [ENS name inputs for `/v1/balance` and `/v1/transactions`](docs/hackathon/03-ens-integration.md) | Third priority; no prize claim. Eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way; none is claimed for ordinary `.eth` resolution alone. Done criteria are in the spec. |
 
 ## Architecture
 
