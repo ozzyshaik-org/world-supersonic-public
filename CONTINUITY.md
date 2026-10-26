@@ -61,14 +61,24 @@ Immediately before event implementation begins, the then-current `main` is tagge
 `ethglobal-mumbai-2026-start`, the tag is pushed, and its commit hash is recorded in `HACKATHON_LOG.md`. The tag does not
 exist yet. Event work is everything after that tag. History is never rewritten and the tags are never moved.
 
-The committed features, each with a definition of done:
+The committed features, each with a definition of done, in scope order:
 
-1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc.
-2. **World ID gating with IDKit**: one API key per verified human.
+1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc (core priority).
+2. **World ID gating with IDKit**: one API key per verified human (core priority).
+3. **ENS name inputs for address parameters** (third priority): attempted after the Arc and IDKit flows work end to end, with their demos, tests and evidence complete. See `docs/hackathon/03-ens-integration.md`.
 
-Optional stretch, not committed: World Agent Pass, a separate official integration. No eligibility is claimed unless its
-complete verification journey is built. ENS is not part of the planned work; its spec in `docs/hackathon/` is retained only
-as dropped pre-kickoff documentation.
+Optional stretch, not committed: World Agent Pass, a separate official integration, never conflated with IDKit. No eligibility is claimed unless its
+complete verification journey is built.
+
+Partner prize targets:
+
+| Track | Priority | Eligibility |
+|---|---|---|
+| Arc: Bring Your Project to Arc | 1, core | Defined by the done criteria in `docs/hackathon/01-x402-arc-gateway.md` |
+| World: Best IDKit use case | 2, core | Defined by the done criteria in `docs/hackathon/02-world-id-gating.md` |
+| ENS | 3 | Third priority; eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way |
+
+Editing note: an earlier version of this section (PR #3) described ENS as dropped. The owner decision since then keeps ENS as third-priority scope; this section and `docs/hackathon/03-ens-integration.md` supersede that wording.
 
 To see only the event changes:
 

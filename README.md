@@ -24,6 +24,9 @@ Planned during the hackathon:
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc.
 2. **World ID gating with IDKit**: one API key per verified human.
+3. **ENS name inputs for address parameters**, third priority: attempted after the Arc and IDKit flows work end to end, with their demos, tests and evidence complete ([spec](docs/hackathon/03-ens-integration.md)).
+
+Arc x402 and World ID IDKit are the core priorities. World Agent Pass is a separate official integration and an optional stretch, never conflated with IDKit.
 
 ### Partner prize targets (Continuity)
 
@@ -33,6 +36,7 @@ Each target has a definition of done. All new work is committed to this public r
 |---|---|---|
 | Arc: Bring Your Project to Arc | [x402](docs/hackathon/01-x402-arc-gateway.md) pay-per-request access, paid in USDC through Circle Gateway nanopayments, started from Arc Studio | A request to a paid `/v1` route returns HTTP 402; the client retries with a signed payment authorization; the seller accepts it and fulfills the request; accepted authorizations are later settled in batch through Circle Gateway on Arc. Per-request onchain settlement is not claimed. Demo URL and open-source code. |
 | World: Best IDKit use case | [One API key per verified human](docs/hackathon/02-world-id-gating.md) with World ID | A key is minted only after a World ID proof, a second key for the same human is refused, and the key works on `/v1`. |
+| ENS | [ENS name inputs for address parameters](docs/hackathon/03-ens-integration.md) | Third priority; eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way. No prize eligibility is claimed for ordinary `.eth` resolution alone. Done criteria are in the spec. |
 
 ## Architecture
 
