@@ -16,8 +16,9 @@ derives DeFi / token / MEV views from them, and serves the result over REST and 
 
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 
-This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). The pre-hackathon state is the
-annotated tag `baseline-pre-ethglobal-mumbai`; see [CONTINUITY.md](CONTINUITY.md) for the baseline-versus-new split.
+This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated
+tag `baseline-pre-ethglobal-mumbai` plus the documentation-only commits made before kickoff. Event work is everything after
+the annotated tag `ethglobal-mumbai-2026-start`, which is created at kickoff. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
 Planned during the hackathon:
 
