@@ -1,6 +1,6 @@
-# Feature 3: ENSv2 integration
+# ENSv2 integration (dropped)
 
-Status: specification. Implementation starts 5 Nov 2026.
+Status: **dropped, retained as pre-kickoff documentation.** This is not planned work and not a partner prize target. The committed scope is Arc x402 and World ID IDKit; see [CONTINUITY.md](../../CONTINUITY.md).
 
 ## Goal
 Use ENSv2 names as first-class identity in the API and explorer, beyond cosmetic lookups.

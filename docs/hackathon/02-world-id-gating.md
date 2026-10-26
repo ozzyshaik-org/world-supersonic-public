@@ -1,9 +1,12 @@
 # Feature 2: World ID gating (one API key per human)
 
-Status: specification. Implementation starts 5 Nov 2026.
+Status: committed feature, specification. Official kickoff on 5 Nov 2026; implementation is event work after the start tag.
 
 ## Goal
 Issue API keys only to verified humans, one key per human.
+
+## Scope
+This is the World ID IDKit integration. World Agent Pass is a separate official integration and an optional stretch, not part of this spec; no Agent Pass eligibility is claimed unless its complete verification journey is built.
 
 ## Design
 - Key minting (`POST /v1/auth/keys`) requires a World ID proof from IDKit, verified server-side.
