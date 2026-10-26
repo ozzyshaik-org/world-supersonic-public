@@ -17,6 +17,7 @@ from this baseline section. See [CONTINUITY.md](CONTINUITY.md) for the baseline/
 - The pre-kickoff specifications and documentation merged in PR #3 and PR #4 were drafted with AI assistance and reviewed
   and edited by the owner. The commit history of those PRs carries owner-review commits (for example "docs: apply owner review: ...").
   The repository does not record which AI tool drafted them.
+- PR #5 itself (this documentation change) was drafted with the help of an AI assistant, Grok Bot, the owner's assistant, and is reviewed by the owner before merge.
 
 ## Usage by area
 

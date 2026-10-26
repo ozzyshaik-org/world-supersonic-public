@@ -70,6 +70,8 @@ Rules for a request that carries a nonce already in the ledger:
 | same fingerprint | `in_progress` | Wait for the lease holder and return its stored response; if the lease expires first, take it over as for `retryable_failure`. One logical fulfilled response and at most one settlement. Upstream reads are idempotent and may be repeated after a lease takeover, but duplicate upstream reads must never produce multiple charges or settlements. |
 | different fingerprint | any | Reject with `409`. No upstream call, no state change, no charge. |
 
+**Lease fencing:** fulfillment is committed with a conditional write that checks both the nonce and the current lease owner. A worker that no longer holds a valid lease must not store or directly return its upstream result as the fulfilled response. It discards that result and either returns the current stored result or instructs the client to retry. Every successful caller for the same nonce and fingerprint receives the same stored response and receipt.
+
 Only fulfilled authorizations enter a settlement batch. An authorization is settled at most once.
 
 ## Paid-route enforcement
@@ -83,7 +85,7 @@ A route represented as paid is reachable only through the seller. Direct access 
 5. State machine tests cover:
    - Retry after a lost response: the upstream call completes, the response is lost before it is stored, and the retry with the same nonce and fingerprint is fulfilled with one charge.
    - Concurrent same-request retries, when no lease failure occurs: parallel requests with one nonce and fingerprint produce one upstream call, one charge and the same response for every caller.
-   - Lease takeover failover: the first worker loses its lease while its upstream read is still running and a second worker takes over. A repeated upstream read is allowed. The test requires one stored result, one charge and at most one settlement, and fails on a second charge or settlement.
+   - Lease takeover failover: the first worker loses its lease while its upstream read is still running and a second worker takes over. A repeated upstream read is allowed. The test requires one stored result, one charge and at most one settlement, and fails on a second charge or settlement. The stale worker's late completion cannot overwrite the stored result or produce a second successful response. Concurrent and failover callers receive the same stored response and receipt, with one charge and at most one settlement.
    - Nonce reuse for a different request: the same nonce with a different fingerprint is rejected with `409` and does not reach the Go API.
    - Retry of a fulfilled request returns the stored response and receipt with no upstream call.
    - A voided authorization is never settled.
