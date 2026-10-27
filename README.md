@@ -21,7 +21,7 @@ Supersonic is an integrated stack for working with World Chain at the execution 
 * **Execution-level indexing.** `worldchain-exex` runs as a reth Execution Extension inside `op-reth` and streams each committed block (header, transactions, call traces, logs) to `tank-engine` over gRPC on a unix socket.
 * **Raw data in a database you control.** Blocks, transactions, call traces and logs are written to your own ClickHouse (`world_blocks`, `world_transactions`, `world_traces`, `world_logs`), so you can query them directly with SQL.
 * **Derived datasets.** `tank-engine` derives token transfers, DEX swaps and DeFi events from the raw data, and `mev-detector` adds MEV rows (priority bribes, bot spam, atomic arbitrage and sandwich candidates). `mev-detector` runs as a separate process over blocks that are already fully ingested, in chunks, so MEV rows trail the chain head.
-* **REST and WebSocket access.** `rpc-gateway` serves `/v1/*` REST (see [`docs/openapi.yaml`](docs/openapi.yaml)) with API-key tiers and rate limits; `cmd/api` serves a key-gated `/ws` stream.
+* **REST and WebSocket access.** `rpc-gateway` serves `/v1/*` REST (see [`docs/openapi.yaml`](docs/openapi.yaml)) with API-key tiers and rate limits; `cmd/api` exposes `/ws` with API-key and rate-limit checks; the current Valkey fail-open behavior and unauthenticated `edge` WebSocket are disclosed under known limits below.
 * **Investigation graphs (SGIP).** `sgip` renders transaction call-trace graphs and contract and wallet views from the indexed data, and renders a contract's control-flow graph (CFG) when one is stored for it. The decompiler that produces stored CFGs is not part of this repository.
 * **One workflow.** Extraction (ExEx) → indexed datasets (ClickHouse) → APIs (REST/WebSocket) → investigation UI (SGIP).
 
@@ -63,7 +63,7 @@ flowchart LR
     RETH -- "gRPC over unix socket<br/>(proto/nodestream.proto)" --> TANK["tank-engine<br/>ingest, healers, view matcher"]
     TANK --> CH[("ClickHouse<br/>world_* raw tables<br/>api_* derived tables")]
     CH --> GW["rpc-gateway :8081<br/>REST /v1/*, API keys, rate limits"]
-    CH --> API["supersonic-api :8090<br/>WebSocket /ws (key-gated)"]
+    CH --> API["supersonic-api :8090<br/>WebSocket /ws (API-key and rate-limit checks; see known limits)"]
     CH --> SGIP["sgip :8095<br/>explorer / CFG visualizer"]
     CH <--> MEV["mev-detector"]
     GW <--> VK[(Valkey cache)]
@@ -80,8 +80,8 @@ flowchart LR
 | `exex/` | Rust (reth ExEx) | unix socket | Streams committed blocks (header, txs, traces, logs) out of `op-reth` | Running in production. **Build not reproducible from this repo** (private reth checkout, see `exex/README.md`) |
 | `tank-engine/` | Rust | – | Consumes the ExEx stream, writes ClickHouse, backfills and heals gaps, matches logs into derived `api_*` tables | Running in production (`cargo check` passes) |
 | `cmd/rpc-gateway/` | Go | 8081 | REST API `/v1/*`, Valkey cache + singleflight, API-key tiers and rate limits, Prometheus `/metrics`, Swagger `/docs` | Running; `go build`/`go vet` pass |
-| `cmd/api/` + `web/` | Go | 8090 | Key-gated WebSocket `/ws` that polls recent DEX/DeFi/NFT rows and pushes them to the edge; serves a static page | Running; `go build`/`go vet` pass |
-| `edge/` | Rust (axum) | 8091 | WebSocket fan-out of messages received from supersonic-api over a unix socket | Running (`cargo check` passes) |
+| `cmd/api/` + `web/` | Go | 8090 | WebSocket `/ws` with API-key and rate-limit checks (see known limits) that polls recent DEX/DeFi/NFT rows and pushes them to the edge; serves a static page | Running; `go build`/`go vet` pass |
+| `edge/` | Rust (axum) | 8091 | WebSocket fan-out of messages received from supersonic-api over a unix socket; its `/ws` is unauthenticated (see known limits) | Running (`cargo check` passes) |
 | `sgip/` | Python (FastAPI) | 8095 | Contract / transaction / wallet explorer and control-flow-graph visualizer over ClickHouse | Running |
 | `mev-detector/` | Python | – | Scans indexed blocks for MEV patterns into `world_mev_activity`; optional Telegram/Discord alerts | Running |
 | `schema/` | SQL | – | ClickHouse DDL (tables, materialized views) | Reference dumps |
@@ -105,7 +105,7 @@ Not live / not finished — said plainly:
   (env `ADMIN_TOKEN`) and is disabled when the variable is unset.
 * The gateway's embedded OpenAPI spec lists 5 REST routes; the code registers more (`/v1/defi/events`, `/v1/mev/analytics`,
   `/v1/portfolio`, `/v1/health/system`, `/v1/auth/keys`). `docs/openapi.yaml` documents all of them.
-* `edge` `/ws` has no authentication; `cmd/api` fails open on key checks if Valkey is unavailable.
+* `edge` `/ws` has no authentication (`edge/src/main.rs` registers `/ws` with no key check and binds `0.0.0.0:8091`). `cmd/api` fails open on key checks if Valkey is unavailable: in `Gatekeeper` (`cmd/api/main.go`), if the Valkey client could not be created, or the key/rate-limit check script returns an error, the request is passed through with no key validation and no rate limit. A request with no `api_key` parameter is still refused (401).
 * CORS is `*` on the gateway and sgip.
 * Single-host deployment, no high-availability story, and no automated test suite for the Go services.
 * An older Go ingester (`internal/tank`) was superseded by `tank-engine` and is not included.
@@ -125,7 +125,7 @@ Notes from a clean-clone run on Debian 13 (these steps are still partial; see th
 
 ```bash
 cp .env.example .env            # fill in; never commit
-# schema (see schema/; complete_schema.sql is a raw SHOW CREATE dump; quick-start steps are untested)
+# core schema only; complete_schema.sql is a raw SHOW CREATE dump; see the limitations above
 clickhouse-client --query "CREATE DATABASE IF NOT EXISTS worldchain"   # the schema files do not create it
 clickhouse-client --multiquery < schema/01_core_schema.sql
 clickhouse-client --multiquery < schema/02_materialized_views.sql
