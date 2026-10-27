@@ -30,10 +30,10 @@ Dated scale measurements and the known limits (including that the ExEx has only 
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 
 This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated
-tag `baseline-pre-ethglobal-mumbai` plus the commits made before the start tag (documentation and CI so far). Event work is everything after
+tag `baseline-pre-ethglobal-mumbai` plus every commit made before the start tag: documentation and CI, and also build, schema and lockfile work (all of it before `ethglobal-mumbai-2026-start`). Event work is everything after
 the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
-Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory of the existing assets is included; origin of those assets is not confirmed), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet) and [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo).
+Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory of the existing assets is included; origin of those assets is not confirmed), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet) [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo), the [submission checklist](docs/hackathon/95-submission-checklist.md) (all boxes unchecked; nothing submitted) and the [AI artifact plan](docs/hackathon/96-ai-artifact-plan.md) (plan only; no prompts published yet).
 
 Planned during the hackathon (committed scope—specifications only, not yet implemented):
 
@@ -109,6 +109,7 @@ Not live / not finished — said plainly:
   `/v1/portfolio`, `/v1/health/system`, `/v1/auth/keys`). `docs/openapi.yaml` documents all of them.
 * `edge` `/ws` has no authentication (`edge/src/main.rs` registers `/ws` with no key check and binds `0.0.0.0:8091`). `cmd/api` fails open on key checks if Valkey is unavailable: in `Gatekeeper` (`cmd/api/main.go`), if the Valkey client could not be created, or the key/rate-limit check script returns an error, the request is passed through with no key validation and no rate limit. A request with no `api_key` parameter is still refused (401).
 * CORS is `*` on the gateway and sgip.
+* Client address handling in the gateway's rate limiter (`cmd/rpc-gateway/main.go`): `ApiKeyAuthAndRateLimitMiddleware` (line 1355; applied to the `:8081` handler at line 493) takes the client address from `r.RemoteAddr` (lines 1420-1423) and then, whenever an `X-Forwarded-For` header is present, replaces it with the first comma-separated entry of that header, trimmed (lines 1424-1428), with no check on who sent the header. If the resulting string is `127.0.0.1` or `::1`, the request skips the token-bucket rate limit (lines 1429-1432). A supplied API key is validated before this step (an invalid or revoked key gets 401, lines 1395-1404). A request with no key is not refused by this function; it continues with the default limit of 1 request per second with a burst of 5 (lines 1393-1394), and the loopback exemption skips that limit as well. An older `RateLimitMiddleware` (line 382) has the same logic at lines 399-410, but it is not called anywhere in the file. This describes the code only; whether it can be reached in a given deployment depends on what sits in front of the service and was not assessed here. It is a limit of this code, not a finding about any deployment, and no change is made in this documentation-only pull request.
 * Single-host deployment, no high-availability story, and no automated test suite for the Go services.
 * An older Go ingester (`internal/tank`) was superseded by `tank-engine` and is not included.
 * Deployment files (systemd units, reverse-proxy config, monitoring, node genesis/rollup configs) are intentionally **not** published.
