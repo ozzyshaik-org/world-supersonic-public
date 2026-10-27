@@ -61,22 +61,25 @@ Immediately before event implementation begins, the then-current `main` is tagge
 `ethglobal-mumbai-2026-start`, the tag is pushed, and its commit hash is recorded in `HACKATHON_LOG.md`. The tag does not
 exist yet. Event work is everything after that tag. History is never rewritten and the tags are never moved.
 
-The committed scope—specifications only, not yet implemented—is three features, each with a definition of done, in scope order:
+The committed scope—specifications only, not yet implemented—is four features, each with a definition of done, in scope order:
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc (core priority).
 2. **World ID gating with IDKit**: one active self-service free-tier key per action-scoped nullifier (core priority).
-3. **ENS name inputs for `/v1/balance` and `/v1/transactions`** (third priority): attempted after the Arc and IDKit flows work end to end, with their demos, tests and evidence complete. See `docs/hackathon/03-ens-integration.md`.
+3. **World ID Agent Pass: human checkpoint for one paid or elevated data request** (third priority): attempted after the Arc and IDKit flows are complete end to end, with their demos, tests and evidence. See [`docs/hackathon/04-agent-pass.md`](docs/hackathon/04-agent-pass.md). Agent Pass approval never replaces Arc/x402 payment.
+4. **ENS name inputs for `/v1/balance` and `/v1/transactions`** (fourth priority): attempted after the Arc, IDKit and Agent Pass flows are complete and evidenced. See [`docs/hackathon/03-ens-integration.md`](docs/hackathon/03-ens-integration.md).
 
-Optional stretch, not committed: World Agent Pass, a separate official integration, never conflated with IDKit. No eligibility is claimed unless its
-complete verification journey is built.
+Arkiv and CROPS are uncommitted stretch options, documented in `docs/hackathon/90-stretch-options.md`. They are not part of the committed scope. Only one may be attempted, and only after all four committed flows are complete and evidenced. Uniswap is watchlist-only and is not planned work.
 
 Partner prize targets:
 
 | Track | Priority | Eligibility |
 |---|---|---|
-| Arc: Bring Your Project to Arc (current prize target) | 1, core | Defined by the done criteria in `docs/hackathon/01-x402-arc-gateway.md` |
-| World: Best IDKit use case (current prize target) | 2, core | Defined by the done criteria in `docs/hackathon/02-world-id-gating.md` |
-| ENS (conditional prize consideration) | 3 | Third priority; no prize claim. Eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way |
+| Arc: Bring Your Project to Arc | 1, core | Defined by the done criteria in `docs/hackathon/01-x402-arc-gateway.md` |
+| World: [Cont] Best IDKit Use Case | 2, core | Continuity-only listing, target pending confirmation; defined by the done criteria in `docs/hackathon/02-world-id-gating.md` |
+| World ID Agent Pass | 3, targeted | Continuity-only listing, target pending confirmation; the separate general listing is not claimed; defined by the done criteria in `docs/hackathon/04-agent-pass.md` |
+| ENS | 4, conditional | No prize claim. Ordinary `.eth` resolution alone supports no ENSv2 prize claim; eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way (see `docs/hackathon/03-ens-integration.md`) |
+
+No selection, eligibility or winnings are claimed for any row. Final prize terms must be rechecked.
 
 To see only the event changes:
 
