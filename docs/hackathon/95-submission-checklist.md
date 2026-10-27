@@ -57,6 +57,7 @@ Arc page: "Every Arc prize requires using Arc Studio as the starting point. Plea
 ## Code, demo and AI
 - [ ] A live demo that works at the time of judging.
 - [ ] Public code: a public repository with an open-source license, and the README sections the specs require.
+- [ ] Continuity rule: ETHGlobal's rules say "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules)). Check that every new part (the seller service, the web UI, and the Agent Pass, IDKit and ENS code) is in the public repository under an open-source license, with nothing event-built kept private.
 - [ ] AI attribution: where and how AI tools were used, by part, file or asset. Details: "Clearly document in your submission where and how AI tools were used in the project." See [AI_USAGE.md](../../AI_USAGE.md).
 - [ ] Meaningful human contribution is explicit and true. Details: "Submissions that rely entirely on AI without meaningful contributions from team members may not be eligible for partner prizes or finalist consideration."
 - [ ] Spec-driven artifacts are in the repository, as in the [AI artifact plan](96-ai-artifact-plan.md). Details: "you must include all spec files, prompts, and planning artifacts in your submission repository."
