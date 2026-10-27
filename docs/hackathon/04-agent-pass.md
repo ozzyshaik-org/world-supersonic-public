@@ -51,7 +51,7 @@ IDKit free-tier uniqueness ([spec 02](02-world-id-gating.md)) and Agent Pass act
 
 ### Components and reuse
 - **Agent**: proposes the operation through a server endpoint using the agent's own application credential. It never holds a World ID token. The endpoint names in this document are illustrative names for our own application, not World ID endpoints.
-- **Backend**: stores pending operations, runs the OIDC client directly against the World ID issuer (no intermediate auth server), validates results, records approvals and executes. The pending-operation tables live in the same kind of dedicated transactional store as spec 02. The approval consumption and the operation reservation commit in one transaction. For paid operations, the payment binding and the spec 01 ledger check must also commit in that same transaction, so the Agent Pass tables and the Arc ledger share one transactional store (a single database or an equivalent single transaction boundary). Which store that is, is decided at implementation; an arrangement that cannot give one transaction boundary is not allowed without a spec amendment.
+- **Backend**: stores pending operations, runs the OIDC client directly against the World ID issuer (no intermediate auth server), validates results, records approvals and executes. The pending-operation tables live in the same kind of dedicated transactional store as spec 02. The approval consumption and the operation reservation commit in one transaction. For paid operations, the payment binding and the spec 01 ledger row (created in `submission_pending`) must also commit in that same transaction, before any call to Circle Gateway, so the Agent Pass tables and the Arc ledger share one transactional store (a single database or an equivalent single transaction boundary). Which store that is, is decided at implementation; an arrangement that cannot give one transaction boundary is not allowed without a spec amendment.
 - **Frontend**: the approval journey reuses the event web frontend (the web UI that spec 01 defines for the Arc flow) as additional views. No separate unrelated UI is created.
 - **Application session**: the human must hold an authenticated application session for the target account when the human starts fresh authentication. No human session is involved in the agent's proposal. The repository today has API keys and no user-session model, so the minimal account and session model required for the demo is defined at implementation. It must support linking a World ID `(iss, sub)` to an account while signed in.
 
@@ -65,8 +65,10 @@ stateDiagram-v2
     awaiting_approval --> approved: human approves displayed action
     approved --> executing: single-use approval consumed and operation reserved
     executing --> executed: protected action completed
-    executing --> uncertain: outcome unknown
-    executing --> rejected: bound payment authorization void before fulfillment
+    executing --> uncertain: outcome unknown, reconciliation unresolved
+    uncertain --> executing: reconciled under the same binding
+    executing --> rejected: payment not accepted or payment failed, nothing fulfilled
+    executing --> failed: payment accepted, upstream fulfillment permanently failed
     proposed --> cancelled: cancelled
     awaiting_auth --> cancelled: cancelled
     awaiting_approval --> denied: human denies
@@ -84,7 +86,8 @@ stateDiagram-v2
 3. When the human starts fresh authentication, the backend creates an authentication attempt bound to the operation, the target account and the human's current application session, stored in `auth_attempt.session` (see OIDC binding), and redirects to the World ID issuer.
 4. The human completes World ID authentication. The browser returns to the backend callback, which validates the result. The operation moves to `awaiting_approval` only if every check passes.
 5. The application shows the stored operation again and the human approves or denies it, in the same application session as the validated attempt. The application records the decision.
-6. The agent (using its application credential) or the human (through the frontend, in the bound session) resumes the operation. The backend rechecks everything, consumes the approval and reserves the operation in one transaction, then executes.
+6. For an elevated (not paid) operation, the agent (using its application credential) or the human (through the frontend, in the bound session) resumes the operation. The backend rechecks everything, consumes the approval and reserves the operation in one transaction, then executes.
+7. For a paid operation the resume is the paid protected request itself, and the payment is reserved before it is submitted. The client obtains the payment requirements stored in the operation and signs exactly that operation's payment; this can happen before or after approval, because nothing is submitted to Circle Gateway until step 8. The paid request carries the operation identifier. The backend rechecks everything and, in one transaction, consumes the approval, moves the operation `approved` to `executing`, creates the `payment_binding` and creates the ledger row in `submission_pending`. Only after that commits is the payment submitted. See Composition with Arc/x402.
 
 ### Approval UI
 The approval view is rendered only from the stored pending-operation row, never from values the agent supplies at approval time. It is shown after authentication has been validated and before any decision is recorded. The mock below uses placeholders, not real data.
@@ -201,8 +204,8 @@ Permitted states and race:
 - Cancellation is a conditional atomic transition to `pending_operation.state=cancelled`: the update succeeds only if the operation is still in one of those states. Cancellation from `approved` additionally requires that the operation is still `approved` and has not been execution-reserved.
 - The execution transaction's `approved` to `executing` transition likewise conditions on the operation still being `approved` and not `cancelled`.
 - Cancellation and execution therefore cannot both win. If the cancellation commits first, execution refuses. If the execution reservation commits first, cancellation refuses and cannot undo the execution.
-- Cancellation after `executing`, `executed` or `uncertain` is refused. No cancellation row is added to `approval`.
-- A winning cancellation performs no protected execution, fulfillment or settlement. For a paid operation, Composition with Arc/x402 defines what happens to an authorization already accepted by the seller.
+- Cancellation after `executing`, `executed`, `uncertain`, `failed` or `rejected` is refused. No cancellation row is added to `approval`.
+- A winning cancellation performs no protected execution, no payment submission and no fulfillment, because it commits before the execution reservation and nothing is submitted to Circle Gateway before that reservation. **The cancellation window closes at the execution reservation.** Once it has committed, cancellation, denial and expiry no longer apply, including after Gateway has accepted the payment: this spec offers no way to stop an accepted authorization from being batched and settled by Gateway.
 
 ## Execution
 Execution runs only after the agent or human resumes an `approved` operation. A human resume must match the approved operation, the session stored in the validated attempt (`auth_attempt.session`) and the target account. An agent resume must match the stored `agent_id` and `account_id`, authenticated with the agent's application credential. Neither path may bypass the approved, unused, unexpired operation or any recheck below. Immediately before execution the backend rechecks, and any failed check fails closed:
@@ -212,74 +215,92 @@ Execution runs only after the agent or human resumes an `approved` operation. A 
 - the fingerprint recomputed from the actual request equals the stored and approved fingerprint, and the account, agent, price or access consequence equals the stored values;
 - for a human resume, the application session still equals `auth_attempt.session` of the validated attempt and is still valid for the target account; for an agent resume, the agent's credential is still valid and still matches the stored `agent_id` and `account_id`; the account has not been revoked, and the account still has permission to approve and run this operation;
 - the linked `(iss, sub)` still equals the one validated for this operation, and the stored `acr` and `amr` (as an unordered set) still equal the saved profile and `auth_time` still satisfies the saved policy, with `auth_time` within `max_auth_age_seconds` now;
-- for a paid operation, the named `auth_key` identifies a spec 01 ledger row that is `accepted` (not `void`, not already bound), whose fingerprint, price, network, asset and `payTo` equal the operation and the price table, and whose remaining validity covers fulfillment.
+- for a paid operation, the request carries the operation identifier, and the payment it presents passes the spec 01 local payment-structure checks (well-formed authorization, 32-byte nonce, `validAfter` already reached, `validBefore` at least the minimum Circle documents ahead). Its network, asset, `payTo` and amount equal the operation's stored payment snapshot and the current price table entry (see Data model), and its derived `auth_key` and nonce are not present in the ledger. No Gateway call is made to check any of this.
 
-**Atomic single use.** In one database transaction the backend sets `approval.used_at` with a conditional update that requires it to be unset, checks that exactly one row changed, moves the operation from `approved` to `executing` with a conditional update that requires the operation to still be `approved` and not `cancelled` (checking that exactly one row changed), and authorizes or reserves the operation. For a paid operation the same transaction also checks that the ledger row is still `accepted` and inserts the `payment_binding` (see Composition with Arc/x402); if the insert violates a `UNIQUE` constraint, the whole transaction rolls back and the approval stays unused. If any statement fails or no row changed, the transaction rolls back and nothing executes. Two concurrent resumes produce exactly one reservation, and a concurrent cancellation and resume produce exactly one winner (see Cancellation). The upstream call happens after the commit, with the stable operation ID.
+**Atomic single use.** In one database transaction the backend sets `approval.used_at` with a conditional update that requires it to be unset, checks that exactly one row changed, moves the operation from `approved` to `executing` with a conditional update that requires the operation to still be `approved` and not `cancelled` (checking that exactly one row changed), and authorizes or reserves the operation. For a paid operation the same transaction also inserts the `payment_binding` and the spec 01 ledger row in `submission_pending` (see Composition with Arc/x402); if either insert violates a `UNIQUE` constraint, the whole transaction rolls back and the approval stays unused. If any statement fails or no row changed, the transaction rolls back and nothing executes. Two concurrent resumes produce exactly one reservation, and a concurrent cancellation and resume produce exactly one winner (see Cancellation). The upstream call, and for a paid operation the call to Circle Gateway, happen after the commit, with the stable operation ID. Expiry, cancellation and the freshness recheck are decided in this transaction and not afterwards.
 
-**Stable IDs and uncertain outcomes.** The operation ID is the identifier for the protected action. After a timeout or lost response the backend asks the owning component (the ledger and the Go API result store from spec 01) whether the operation completed. It retries only under the same operation ID and only where that component guarantees a duplicate cannot run twice (for an idempotent read, the spec 01 ledger and lease fencing give that guarantee; see Composition with Arc/x402), never by consuming a second approval and never by asking the human to authenticate again. If the result cannot be determined, the operation stays `uncertain`, is not retried blindly, and is investigated.
+**Stable IDs and uncertain outcomes.** The operation ID is the identifier for the protected action. After a timeout or lost response the backend asks the owning component (the ledger and the Go API result store from spec 01) whether the operation completed. It retries only under the same operation ID and only where that component guarantees a duplicate cannot run twice (for an idempotent read, the spec 01 ledger and lease fencing give that guarantee; see Composition with Arc/x402), never by consuming a second approval, never by creating a second binding and never by asking the human to authenticate again. If the result cannot be determined, the operation is `uncertain`, is not retried blindly, and is investigated; the ledger's nonce reconciliation (spec 01) can still move it back to `executing` or to a final state.
 
 **Changed binding.** A changed operation, route, query, price, account or fingerprint is a different operation and requires a new proposal and a new approval. A retried or extended attempt never carries an old approval forward.
 
 **No token forwarding.** The World ID ID token and authorization code are never sent to the Go API, the seller service's downstream calls, any MCP server or any other API. Downstream calls use the application's own server-side credentials as defined in spec 01. The assurance result is conveyed only through server state.
 
 ## Composition with Arc/x402 for a paid operation
-A paid operation needs both the human checkpoint here and a payment under [spec 01](01-x402-arc-gateway.md). This section defines how they fit together; spec 01 holds the seller's half. Nothing here is implemented or run.
+A paid operation needs both the human checkpoint here and a payment under [spec 01](01-x402-arc-gateway.md). The seller submits payment to Circle Gateway **before** it fulfills, and Circle's documentation gives the seller no way to stop an authorization once Gateway has accepted it. This section therefore reserves the operation before the payment is submitted, never after. Spec 01 holds the seller's half. Nothing here is implemented or run.
 
 **Contract**
-1. **No bypass.** A paid Agent-Pass-protected route cannot be fulfilled merely by presenting payment directly to the Arc seller. Protected operations target only `agent_pass` routes of the spec 01 price table, and the seller refuses fulfillment on such a route until it finds this application's internal execution reservation for the same authorization.
-2. **Internal reservation, no token.** The seller's check reads the operation and the payment binding below. No World ID token, authorization code or claim is forwarded to the seller or anywhere downstream.
-3. **Literal addresses only.** Initial Agent Pass operations accept literal addresses (`0x` followed by 40 hex characters) and no ENS names. A proposal that contains an ENS name is refused with `400`. Ordinary ENS support stays on `/v1/balance` and `/v1/transactions` outside Agent Pass ([03](03-ens-integration.md)), so an approval, a fingerprint and a payment binding here never depend on name resolution. The spec 01 fingerprint covers the supplied text in any case: for ordinary ENS requests it covers the name, not the resolved address.
+1. **No bypass, no idle payment.** A paid Agent-Pass-protected route cannot be fulfilled, and a payment for it cannot be submitted, merely by presenting payment to the Arc seller. Protected operations target only `agent_pass` routes of the spec 01 price table. A payment presented without a valid operation reservation is rejected **before any `settle()` call**, so no accepted payment ever waits for an approval.
+2. **Internal reservation, no token.** The seller reads only application state: the operation, the payment binding below and the ledger row. No World ID token, authorization code or claim is forwarded to the seller or anywhere downstream.
+3. **Literal addresses only.** Initial Agent Pass operations accept literal addresses (`0x` followed by 40 hex characters) and no ENS names. A proposal that contains an ENS name is refused with `400`. Ordinary ENS support stays on `/v1/balance` and `/v1/transactions` outside Agent Pass ([03](03-ens-integration.md)), so an approval, a fingerprint and a payment binding here never depend on name resolution and need no resolution preflight.
 4. **One request shape.** The operation's `method`, `route`, `canonical_query` and `fingerprint` are produced by the spec 01 `v1` fingerprint algorithm. The committed flow is `GET` with an empty body. A proposal for any other method or for a body is refused.
 5. **One-to-one binding.** `operation_id` and the spec 01 authorization key (`auth_key`) are bound one to one. Each is unique in the binding table, so one operation has at most one authorization and one authorization serves at most one operation. The payer is recorded.
-6. **Atomic with consumption.** The binding and the reservation are committed in the same transaction as the approval consumption (see Execution). If any statement fails, nothing commits and the approval stays unused.
+6. **One transaction, before settle.** The approval consumption, the `approved` to `executing` move, the binding and the ledger row in `submission_pending` commit together. The call to Circle Gateway happens only after that commit.
+7. **Approved payment terms.** The payment network, asset, `payTo` and amount are part of the approved operation and are compared exactly (see Data model).
 
 **Sequence**
-1. Propose, authenticate and approve as in the Journey. The operation stores the fingerprint and the price once.
-2. **Payment hold.** The client signs an x402 authorization for exactly that request and presents it to the seller. The seller verifies it, records it as `accepted` and answers `403` `agent_pass_reservation_required` with the `auth_key`. Nothing is fulfilled or fulfillment-eligible.
-3. **Execution.** The agent or the human resumes the `approved` operation and names the `auth_key`. After the rechecks in Execution, one transaction consumes the approval, moves the operation `approved` to `executing`, checks that the ledger row is still `accepted`, and inserts the `payment_binding`.
-4. **Fulfillment.** The same-key retry of the paid request, from the agent or from the backend on its behalf, takes the seller's lease. The seller's reservation check passes and the request is fulfilled. In one transaction the ledger moves to `fulfilled`, the binding to `fulfilled` and the operation to `executed`.
-5. **Settlement** is separate and follows spec 01. `executed` does not mean settled.
+1. Propose, authenticate and approve as in the Journey. The operation stores the fingerprint and the payment snapshot (`payment_network`, `payment_asset`, `payment_pay_to`, `payment_amount`) once, and the human approves exactly that.
+2. The client obtains the payment requirements for the operation's request and signs a payment for exactly those terms. Nothing has been submitted to Circle Gateway: an authorization held by the client is not accepted by anyone. Circle documents that `validBefore` must be at least 3 days ahead (`authorization_validity_too_short`); whether that is measured when `settle()` is called or only at signing is to be confirmed at implementation, so the client signs shortly before it presents the paid request.
+3. The paid protected request arrives, from the agent with its application credential or from the backend on behalf of the human in the bound session. The seller requires its operation identifier (a request header, name chosen at implementation; it is not a fingerprint input) and validates the approved operation, the immutable request snapshot (fingerprint) and the payment terms against the stored snapshot. A request with no operation identifier, an unknown or non-`approved` operation, or terms that differ is refused before any `settle()` call (see the refusal table).
+4. In **one transaction**: consume the approval; move the operation `approved` to `executing`; create the one-to-one `payment_binding` (state `reserved`); and create the spec 01 ledger row in `submission_pending`. If any statement fails or violates a `UNIQUE` constraint, the transaction rolls back and the approval stays unused.
+5. **Only after that commits**, the seller calls Gateway `settle()` (spec 01).
+6. After Gateway acceptance, the seller does the leased upstream read (spec 01 lease fencing).
+7. In one transaction: the ledger `fulfillment_state` becomes `fulfilled`, the binding becomes `fulfilled`, and the operation becomes `executed`. `executed` does not mean settled; Gateway batches and settles later, and that is observed by spec 01 reconciliation, never claimed from this side.
 
 **`payment_binding`.** A separate record, so `pending_operation` stays immutable apart from its `state`.
 
 | Column | Meaning |
 |---|---|
 | `operation_id` | The `pending_operation.id`; `UNIQUE` |
-| `auth_key` | The spec 01 composite key; `UNIQUE` |
+| `auth_key` | The spec 01 composite key, derived by the seller from the presented authorization; `UNIQUE` |
 | `approval_id` | The approval consumed in the same transaction |
-| `payer` | The payer address, copied from the ledger binding and recorded |
-| `network`, `asset`, `pay_to`, `price` | Copied from the ledger binding; each must equal the operation and the price table at reservation |
+| `payer`, `valid_after`, `valid_before` | From the presented authorization, equal to the ledger binding |
+| `network`, `asset`, `pay_to`, `amount` | Copied from the operation's stored `payment_*` snapshot, not from the authorization; the authorization must equal them |
 | `fingerprint` | Copied from the operation; must equal the ledger fingerprint |
-| `state` | `reserved`, `fulfilled` or `void` |
+| `state` | `reserved`, `fulfilled`, `rejected`, `void` or `failed` (see below) |
 | `reserved_at`, `closed_at` | Written when the state is set |
 
-All columns except `state` and `closed_at` are written once, in the execution transaction, and never updated. `state` moves only `reserved` to `fulfilled` or `reserved` to `void`. The record holds no World ID token, code or claim.
+All columns except `state` and `closed_at` are written once, in the execution transaction, and never updated. `state` moves only out of `reserved`, once. The record holds no World ID token, code or claim.
 
-**Cancellation after payment acceptance but before fulfillment**
-- *Before the reservation commits* (operation `proposed`, `awaiting_auth`, `awaiting_approval` or `approved`): the operation moves to `cancelled` as defined in Cancellation. No binding can be created afterwards, because the `approved` to `executing` update requires the operation to still be `approved` and not `cancelled`. If the cancel request names a held `auth_key`, the same transaction moves that ledger row from `accepted` to `void`, conditional on no binding existing. If it names none, the held authorization still cannot be fulfilled (the seller's reservation check finds no binding), can never enter a settlement batch, and becomes `void` when its validity closes.
-- *After the reservation commits:* cancellation is refused and cannot undo the execution. The ledger follows the lease and fulfillment rules of spec 01.
+| Binding and operation outcome | When |
+|---|---|
+| binding `fulfilled`, operation `executed` | Spec 01 `fulfillment_state = fulfilled` |
+| binding `rejected`, operation `rejected` (reason `payment_rejected`) | `settle()` definitely rejected the authorization, or reconciliation found the nonce consumed by a different payment. Nothing was accepted |
+| binding `rejected`, operation `rejected` (reason `payment_failed`) | The accepted transfer was reported `failed` before anything was fulfilled. Circle says such transfers were never charged |
+| binding `void`, operation `rejected` (reason `payment_unsubmitted_expired`) | Nothing was ever accepted and the validity window closed. `void` exists only before Gateway acceptance |
+| binding `failed`, operation `failed` | Gateway accepted the payment and the upstream fulfillment permanently failed (spec 01 `paid_unfulfilled`). Not void and not claimed uncharged |
+| binding `reserved`, operation `executing` | Submission pending or uncertain, or accepted and not yet fulfilled |
+| binding `reserved`, operation `uncertain` | Spec 01 `submission_unresolved`; operator attention |
+
+**Definite payment rejection after the reservation: fail closed.** When `settle()` definitely rejects the authorization (spec 01 rule 3), the operation moves to `rejected`, the binding to `rejected` and the ledger row to `rejected`. **The approval stays consumed and the same binding is not reopened.** A new proposal, a new approval and a new authorization are required. The alternatives were to keep the binding open for a replacement authorization or to return the operation to `approved`. Both would need either a second binding for one operation (breaking `UNIQUE(operation_id)` and one-to-one binding) or an approval that is used and then usable again (breaking single use), and both would leave an operation in `executing` indefinitely while a human is away. Failing closed is safe because nothing was accepted, so a new authorization cannot double-spend, and its price is one more human approval after a payment problem. A definite rejection that a deposit would fix, such as `insufficient_balance`, is handled the same way; relaxing that is a spec amendment.
+
+**Submission uncertainty and same-operation recovery.** A timeout, a dropped or empty response or an unexpected error from `settle()` leaves the ledger `submission_uncertain` and the operation `executing`. Nothing is resubmitted and nothing is fulfilled until the seller has looked the transfer up by nonce (spec 01 rule 8). Recovery is **the same operation, the same binding and the same authorization only**: the client or backend re-presents the operation identifier together with the same authorization (the seller compares its derived `auth_key` to the binding), or the backend resumes from the stored ledger row. Recovery consumes no second approval, creates no second binding and needs no new authentication or freshness check; those apply only at the reservation. It still requires the same credential or session ownership check as the original resume. A different authorization for an operation that already has a binding is refused with `409` `agent_pass_binding_conflict` and changes nothing. Operation expiry and the freshness window are not re-evaluated after the reservation commits, so they cannot interrupt a recovery.
+
+**Cancellation, denial and expiry around payment**
+- *Before the reservation commits* (operation `proposed`, `awaiting_auth`, `awaiting_approval` or `approved`): the operation moves to `cancelled` (or `denied` or `expired`) as defined in Cancellation. No binding can be created afterwards, because the `approved` to `executing` update requires the operation to still be `approved` and not `cancelled`. Nothing was submitted to Circle Gateway, so a payment the client has signed is simply never submitted and expires unused.
+- *After the reservation commits:* cancellation is refused and cannot undo the execution, **including after Gateway has accepted the payment**. Denial and expiry no longer apply after the reservation either. Nothing in this spec stops an accepted authorization from being batched and settled.
 - *Race:* the cancellation transaction and the execution transaction both condition on the operation state, so exactly one commits. This keeps the cancel and execute race of Cancellation unchanged: `approved` to `executing` and `approved` to `cancelled` remain mutually exclusive conditional updates.
 
 **Retry semantics**
-- Idempotent upstream reads may repeat under spec 01 lease fencing, for example after a lease takeover.
-- Across the whole composition there is at most one approval consumption, one binding, one logical fulfilled response, one fulfillment-eligible authorization and one settlement.
-- After a timeout or lost response, the backend asks the ledger, by `auth_key`, what happened. A `fulfilled` row gives the stored result. A row still `accepted`, `in_progress` or `retryable_failure` may be retried by the same-key request under the same operation ID, because the ledger guarantees a duplicate read cannot be fulfilled or settled twice. If the ledger cannot say, the operation stays `uncertain`.
+- Idempotent upstream reads may repeat under spec 01 lease fencing after Gateway acceptance, for example after a lease takeover or a failover.
+- Across the whole composition there is at most one approval consumption, one binding, one logical fulfilled response and one settlement, and `UNIQUE(operation_id)` and `UNIQUE(auth_key)` hold.
+- After a timeout or lost response, the backend asks the ledger, by `auth_key`, what happened, and acts on the spec 01 state: a `fulfilled` row gives the stored result; an `accepted` row that is not fulfilled may be retried by the same-key request under the same operation ID; a `submission_uncertain` row is reconciled first. If the ledger cannot say, the operation is `uncertain`.
+- If Gateway later reports a fulfilled operation's transfer as `failed`, the operation stays `executed`, the stored response is preserved and the ledger raises the spec 01 `fulfilled_but_unpaid` incident. Nothing is resubmitted.
 - An uncertain outcome of a mutating upstream call is never retried blindly. The committed flow has no mutating call.
-- Void after the reservation: the operation moves from `executing` to `rejected` (reason `payment_void`). The voided authorization is never reused; a new proposal, approval and authorization are required.
 
 **Requests the contract refuses**
 
 | Case | Outcome |
 |---|---|
-| Payment presented directly to the seller for a protected route, with no resume | Held as `accepted`; `403` `agent_pass_reservation_required`; never fulfilled or settled |
-| Resume that names no `auth_key`, an unknown one, or one whose ledger row is not `accepted` | Refused at the recheck; approval unused; operation stays `approved` |
-| `auth_key` already bound to another operation, or a second key for an operation that already has a binding | The transaction rolls back on the `UNIQUE` constraint; approval unused; the new request is refused |
-| Authorization whose fingerprint, price, network, asset or `payTo` differs from the operation | Refused at the recheck; approval unused; a different request needs a new proposal and approval |
-| Authorization whose payer differs from the held authorization it names | Cannot occur by construction: the payer is copied from the ledger row, never supplied by the resume |
-| Ledger or binding store unreachable at the recheck or at commit | Nothing executes; no fallback to an unreserved fulfillment |
+| Payment presented to a protected route with no operation identifier, an unknown operation, or an operation that is not `approved` (and is not a same-binding recovery) | `403` `agent_pass_operation_required`. No ledger row, no `settle()` call, nothing consumed. The client's authorization stays unsubmitted |
+| Payment whose network, asset, `payTo` or amount differs from the stored snapshot, or a fingerprint that differs from the operation, or a price-table change since proposal | `409` `agent_pass_operation_stale`. No `settle()` call; approval unused; a new proposal and approval are needed |
+| `auth_key` already bound to another operation, or a different authorization for an operation that already has a binding | The transaction rolls back on the `UNIQUE` constraint, or is refused as a conflict (`409` `agent_pass_binding_conflict`); approval unused; no `settle()` call |
+| Authorization whose payer differs from the binding it recovers | Refused as a binding conflict; a payer is never supplied separately from the authorization |
+| Ledger or binding store unreachable at the recheck or at commit | `503`. Nothing executes, nothing is submitted; no fallback to an unreserved submission |
+| `settle()` definitely rejects after the reservation | Fail closed (above) |
+| Cancellation after the reservation | Refused; the operation and the binding are unchanged |
 
 ## Fail-closed outcomes
-Each case below leaves the protected action unexecuted. The operation ends in the state shown, or stays blocked.
+Each case below leaves the protected action unexecuted, or, where a payment was accepted, says plainly what did and did not happen. The operation ends in the state shown, or stays blocked.
 
 | Case | Outcome |
 |---|---|
@@ -295,9 +316,14 @@ Each case below leaves the protected action unexecuted. The operation ends in th
 | Replayed callback, code, approval or resume request, including a callback for a `superseded` attempt | refused; at most one execution |
 | Changed fingerprint, route, query, price or account | refused; new proposal and new approval required |
 | Dependency failure: issuer, discovery document, signing keys or token endpoint unreachable; store unavailable; payment dependency failing | operation stays blocked; nothing executes; no fallback to an unvalidated result |
-| Paid operation: payment presented directly, reused, changed or missing, or cancellation after payment acceptance | See Composition with Arc/x402: never fulfilled or settled without a matching reservation; approval unused where the reservation did not commit |
-| Bound authorization void before fulfillment | Operation `rejected` (reason `payment_void`); never fulfilled or settled |
-| Uncertain outcome of an executed request | `uncertain`; no blind retry; no new authentication to repeat it |
+| Paid operation: payment presented without a valid operation reservation, reused, changed or stale | See Composition with Arc/x402: refused before any `settle()` call; nothing submitted; approval unused where the reservation did not commit |
+| Cancellation, denial or expiry after the execution reservation, including after Gateway acceptance | Refused or not applicable; the operation is not undone and nothing stops an accepted authorization from being batched and settled by Gateway |
+| `settle()` definitely rejects the payment after the reservation | Operation `rejected` (reason `payment_rejected`); approval stays consumed; nothing accepted, nothing fulfilled; a new proposal and approval are required |
+| Submission outcome unknown | Operation stays `executing` (or `uncertain` if unresolved); nothing resubmitted or fulfilled before a nonce lookup; no second approval or binding |
+| Payment never submitted and the validity window closed | Operation `rejected` (reason `payment_unsubmitted_expired`); nothing was accepted |
+| Payment accepted and the upstream fulfillment permanently failed | Operation `failed`; incident `paid_unfulfilled`; not claimed void or uncharged |
+| Fulfilled operation whose Gateway transfer is later reported `failed` | Operation stays `executed`; stored response preserved; incident `fulfilled_but_unpaid`; no resubmission |
+| Uncertain outcome of an executed request | `uncertain`; no blind retry; no new authentication to repeat it; ledger reconciliation may still resolve it under the same binding |
 
 ## Logging and public evidence
 - Never log or publish: client secrets or private keys, API keys, authorization codes, ID tokens, access tokens, the PKCE verifier, `state` or `nonce` values, request bodies, or sensitive query content.
