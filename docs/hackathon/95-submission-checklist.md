@@ -38,10 +38,11 @@ The wording below was read from the official pages on 2026-10-27. Event rules ca
 ## Arc (Circle) requirements
 Arc page: "Every Arc prize requires using Arc Studio as the starting point. Please state which bounty you're submitting for in your submission."
 - [ ] Explicitly select and state the Arc bounty being submitted for in the submission text. The Arc Studio Continuity bounty is stated only if the track and eligibility above are confirmed.
-- [ ] Arc Studio project URL. [Spec 01](01-x402-arc-gateway.md) names `studio.arc.io` and the Arc prizes page links `studio.arc.com`: to be rechecked, and the URL in the submission is the real project URL.
+- [ ] Arc Studio project URL: the real generated project URL on `studio.arc.io` (see [spec 01](01-x402-arc-gateway.md)), recorded here and in the submission once the project exists. No URL is entered before then.
 - [ ] Arc Studio shown in the demo.
 - [ ] A working frontend and a working backend, shown together. [Spec 01](01-x402-arc-gateway.md) counts the Studio-built web UI as the frontend and the seller service as the backend; the CLI utility does not count as the frontend.
-- [ ] An architecture diagram (client, seller service, Circle Gateway, Go API, Arc).
+- [ ] An architecture diagram (client, seller service, Circle Gateway, Go API, Arc), showing the seller submitting to Circle Gateway before it fulfills, and Gateway (not the seller) batching and settling on Arc.
+- [ ] Evidence for the Arc flow keeps acceptance, fulfillment, Gateway batching and final settlement as separate events ([EVIDENCE.md](../../EVIDENCE.md)); a successful response is not presented as onchain settlement.
 - [ ] A video demonstration and presentation covering the project's core functions and its use of Arc Studio and Circle's developer tools, supported by documentation.
 - [ ] A link to the GitHub repository.
 - [ ] Integration feedback on Arc Studio, Circle Gateway and Arc Testnet.
