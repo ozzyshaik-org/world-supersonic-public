@@ -20,6 +20,10 @@ Let API callers pass an ENS name for the address parameter of the initial routes
 - A name that does not resolve returns a `404` with a clear error; malformed names return `400`.
 - Resolution makes outbound calls only to the configured Ethereum mainnet RPC endpoint. The service never fetches a URL taken from an ENS record.
 - ENS text records are not read and drive no behavior.
+- **Paid requests (Arc, spec 01).** The Arc request fingerprint covers the ENS name exactly as the client supplied it, in its canonical-query form, not the resolved address. It is computed before resolution, so it is stable across retries and a later change to the name's records cannot change what was authorized. Names that differ only in letter case are different requests.
+- **Resolution preflight before payment.** The seller submits a payment to Circle Gateway before it fulfills the request, so for a paid request the name is resolved first, before the ledger reservation and before `settle()`. The seller asks the Go API to resolve the name; the Go API uses the same resolver, mainnet RPC endpoint and Valkey cache as above and returns only the resolved address, the resolution time and the block (no application data). The Go API surface for this (a resolve-only route or an equivalent) is chosen at implementation and must be documented in `docs/openapi.yaml` before it ships. A `404` (unresolvable) or `400` (malformed) is returned to the client with no ledger row, no `settle()` call and no charge; a transient resolver failure is `503`, also with no charge.
+- **The recorded address is the one used.** The preflight result is stored once with the ledger row, and the upstream fulfillment call carries that literal address, not the name, so no second resolution happens on a retry, a lease takeover or a failover. If the name's records change after the preflight, the recorded address still wins and the response states when the name was resolved. A fulfilled authorization returns its stored response unchanged on retry. See spec 01, "ENS names and the fingerprint".
+- **Agent Pass containment.** Ordinary ENS support stays on these two routes. Initial Agent Pass operations ([04](04-agent-pass.md)) accept literal addresses only (`0x` followed by 40 hex characters); an ENS name in an Agent Pass proposal is refused with `400`, so approvals, fingerprints and payment bindings there never depend on resolution.
 
 ## Out of scope
 - Any route other than `/v1/balance` and `/v1/transactions`.
@@ -31,7 +35,8 @@ Let API callers pass an ENS name for the address parameter of the initial routes
 1. A request to `/v1/balance` or `/v1/transactions` that passes a `name.eth` for an address parameter resolves through Ethereum mainnet and returns the same data as the resolved address.
 2. Unresolvable and malformed names return the documented errors.
 3. Tests cover resolution, cache hits, and both error cases.
-4. Open-source code, README section and a demo.
+4. Fingerprint and preflight tests (PLANNED): a paid request with an ENS name is fingerprinted over the name as supplied and not the resolved address; two names that resolve to the same address have different fingerprints and a nonce reuse across them is refused; a change of resolution between attempts changes neither the fingerprint nor a stored response. The resolution preflight runs before `settle()`: an unresolvable or malformed name produces the documented error with no ledger row and no `settle()` call; the recorded address is the one the upstream fulfillment call carries, and a change in what the name resolves to after the preflight does not change it. A proposal for an Agent Pass operation that contains an ENS name is refused with `400`.
+5. Open-source code, README section and a demo.
 
 ## Partner prize eligibility
 No ENS partner prize eligibility is claimed for ordinary `.eth` resolution alone. A prize-targeted ENS integration must use ENSv2 on Ethereum mainnet in a functional, central, non-cosmetic way. Eligibility is stated only if the delivered integration meets that condition.
