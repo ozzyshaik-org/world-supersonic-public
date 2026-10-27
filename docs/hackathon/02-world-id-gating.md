@@ -8,7 +8,7 @@ Official kickoff on 5 Nov 2026; implementation is event work after the start tag
 Issue self-service free-tier API keys only to humans verified with World ID, with one active self-service free-tier key per action-scoped nullifier for the key-minting action.
 
 ## Scope
-This is the World ID IDKit integration. World Agent Pass is a separate official integration and an optional stretch, not part of this spec; no Agent Pass eligibility is claimed unless its complete verification journey is built.
+This is the World ID IDKit integration. World ID Agent Pass is a separate official integration, specified in [04](04-agent-pass.md) as the third priority and not part of this spec; no Agent Pass eligibility is claimed unless its complete verification journey is built.
 
 ## Guarantee
 A World ID nullifier is scoped to a user, an app and an action. The same human has a different, unlinkable nullifier in another app or for another action. The guarantee here is therefore action-scoped: one active self-service free-tier key per nullifier for this app's key-minting action. It is not a global one-human claim.

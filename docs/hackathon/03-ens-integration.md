@@ -1,13 +1,14 @@
 # Feature 3: ENS name inputs for address parameters
 
-Status: committed scope, third priority; specification only
+Status: committed scope, fourth priority; specification only
 
 Official kickoff on 5 Nov 2026; implementation is event work after the start tag.
 
 ## Scope order
 1. Arc x402 ([01](01-x402-arc-gateway.md)): core priority.
 2. World ID IDKit ([02](02-world-id-gating.md)): core priority.
-3. ENS name inputs for address parameters (this spec): third priority. It is attempted after the Arc and IDKit flows work end to end, with their demos, tests and evidence complete. ENS scope does not extend beyond what this document lists.
+3. World ID Agent Pass ([04](04-agent-pass.md)): third priority.
+4. ENS name inputs for address parameters (this spec): fourth priority. It is attempted after the Arc, IDKit and Agent Pass flows work end to end, with their demos, tests and evidence complete. ENS scope does not extend beyond what this document lists.
 
 ## Goal
 Let API callers pass an ENS name for the address parameter of the initial routes, `/v1/balance` and `/v1/transactions`.
