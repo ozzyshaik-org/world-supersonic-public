@@ -53,7 +53,7 @@ IDKit free-tier uniqueness ([spec 02](02-world-id-gating.md)) and Agent Pass act
 - **Agent**: proposes the operation through a server endpoint using the agent's own application credential. It never holds a World ID token. The endpoint names in this document are illustrative names for our own application, not World ID endpoints.
 - **Backend**: stores pending operations, runs the OIDC client directly against the World ID issuer (no intermediate auth server), validates results, records approvals and executes. The pending-operation tables live in the same kind of dedicated transactional store as spec 02. Whether they share that database file or the Arc ledger from spec 01 is decided at implementation; the constraint is that the approval consumption and the operation reservation commit in one transaction.
 - **Frontend**: the approval journey reuses the event web frontend (the web UI that spec 01 defines for the Arc flow) as additional views. No separate unrelated UI is created.
-- **Application session**: the human must hold an authenticated application session for the target account. The repository today has API keys and no user-session model, so the minimal account and session model required for the demo is defined at implementation. It must support linking a World ID `(iss, sub)` to an account while signed in.
+- **Application session**: the human must hold an authenticated application session for the target account when the human starts fresh authentication. No human session is involved in the agent's proposal. The repository today has API keys and no user-session model, so the minimal account and session model required for the demo is defined at implementation. It must support linking a World ID `(iss, sub)` to an account while signed in.
 
 ### Journey
 ```mermaid
@@ -76,12 +76,12 @@ stateDiagram-v2
     awaiting_auth --> rejected: validation or policy failure
 ```
 
-1. The agent proposes one operation. The backend computes the request fingerprint, stores the pending operation in state `proposed`, and returns an operation ID and an approval link. The protected action is not executed. The agent may poll the operation status; polling and retries never extend the expiry.
+1. The agent proposes one operation using its application credential. The proposal is bound to the `agent_id` and the target `account_id`; no human application session exists at this point. The backend computes the request fingerprint, stores the pending operation in state `proposed`, and returns an operation ID and an approval link. The protected action is not executed. The agent may poll the operation status; polling and retries never extend the expiry.
 2. The human opens the link in the event web frontend and signs in to the application. The frontend shows the displayed action (see the approval UI below) and a control to start fresh authentication.
-3. The backend creates an authentication attempt bound to the operation and session (see OIDC binding) and redirects to the World ID issuer.
+3. When the human starts fresh authentication, the backend creates an authentication attempt bound to the operation, the target account and the human's current application session, stored in `auth_attempt.session` (see OIDC binding), and redirects to the World ID issuer.
 4. The human completes World ID authentication. The browser returns to the backend callback, which validates the result. The operation moves to `awaiting_approval` only if every check passes.
-5. The application shows the stored operation again and the human approves or denies it. The application records the decision.
-6. The agent (or the human, through the frontend) resumes the operation. The backend rechecks everything, consumes the approval and reserves the operation in one transaction, then executes.
+5. The application shows the stored operation again and the human approves or denies it, in the same application session as the validated attempt. The application records the decision.
+6. The agent (using its application credential) or the human (through the frontend, in the bound session) resumes the operation. The backend rechecks everything, consumes the approval and reserves the operation in one transaction, then executes.
 
 ### Approval UI
 The approval view is rendered only from the stored pending-operation row, never from values the agent supplies at approval time. It is shown after authentication has been validated and before any decision is recorded. The mock below uses placeholders, not real data.
@@ -118,15 +118,15 @@ The approval view is rendered only from the stored pending-operation row, never 
 | Request fingerprint | The SHA-256 fingerprint defined in spec 01 (method, route path, canonicalized query string, body), shown truncated. The approve control submits the operation ID and the full fingerprint; the server compares both with the stored row. The initial scope is requests with an empty body, so no request body is stored or displayed. |
 | Expiry | The stored expiry. Checking status never extends it. |
 
-Approve, deny and cancel are state-changing requests protected by the application session and an anti-CSRF token, and they are accepted only for the operation that is currently displayed for that session.
+Approve, deny and cancel are state-changing requests protected by the application session and an anti-CSRF token. Once an authentication attempt exists, each is accepted only if it arrives in the session stored in that attempt's `auth_attempt.session`, for the operation currently displayed for that session and for the same target account. A request from any other session, operation or account is refused.
 
 ## Data model
 Pending operations, authentication attempts and approvals are separate tables in the transactional store.
 
 | Table | Columns | Constraints |
 |---|---|---|
-| `pending_operation` | `id` (stable operation ID), `agent_id`, `account_id`, `initiating_session` (server-side session identifier), `method`, `route`, `canonical_query`, `fingerprint`, `price_usdc` (nullable), `access_consequence` (nullable), `linked_iss` and `linked_sub` (nullable; the linked World ID where already linked), `enrollment_allowed` (boolean), `required_acr`, `required_amr` (the exact accepted `amr` set, not a minimum), `max_auth_age_seconds` (checked at execution), `state`, `created`, `expires` | The operation, account, fingerprint, price, assurance policy and expiry are written once at proposal and never updated; only `state` changes, and only through the transitions above. `expires` is never extended. |
-| `auth_attempt` | `id`, `operation_id`, `session`, `state_hash`, `nonce_hash`, `pkce_verifier`, `started`, `expires`, `code_redeemed_at`, `result` (`pending`, `validated`, `failed`), `auth_time`, `acr`, `amr`, `iss`, `sub` | `state_hash` unique. At most one open attempt per operation; a new attempt supersedes the previous one. The PKCE verifier stays on the server and is cleared when the attempt closes. `iss` and `sub` are written only after every check passes. |
+| `pending_operation` | `id` (stable operation ID), `agent_id`, `account_id`, `method`, `route`, `canonical_query`, `fingerprint`, `price_usdc` (nullable), `access_consequence` (nullable), `linked_iss` and `linked_sub` (nullable; the linked World ID where already linked), `enrollment_allowed` (boolean), `required_acr`, `required_amr` (the exact accepted `amr` set, not a minimum), `max_auth_age_seconds` (checked at execution), `state`, `created`, `expires` | The operation, agent, account, fingerprint, price, assurance policy and expiry are written once at proposal and never updated; only `state` changes, and only through the transitions above. `expires` is never extended. The row holds no human application session: the proposal is made by the agent with its own application credential, so no human session exists yet. |
+| `auth_attempt` | `id`, `operation_id`, `session`, `state_hash`, `nonce_hash`, `pkce_verifier`, `started`, `expires`, `code_redeemed_at`, `result` (`pending`, `validated`, `failed`), `auth_time`, `acr`, `amr`, `iss`, `sub` | `session` is the human application session current when the attempt starts; it is written once. `state_hash` unique. At most one open attempt per operation; a new attempt supersedes the previous one. The PKCE verifier stays on the server and is cleared when the attempt closes. `iss` and `sub` are written only after every check passes. |
 | `approval` | `id`, `operation_id`, `auth_attempt_id`, `account_id`, `decision` (`approved`, `denied`), `fingerprint_at_decision`, `decided`, `used_at` | A partial unique index allows at most one `approved` row per operation. `used_at` is set once, in the same transaction that reserves the operation. A denial or cancellation row blocks the operation. |
 | `world_id_link` | `account_id`, `iss`, `sub`, `linked_at` | `UNIQUE(iss, sub)` and one link per account. Written only by an explicit link or enrollment flow while the human is signed in, and only after validation (see below). Separate from the IDKit `verification` table. |
 
@@ -141,17 +141,17 @@ The pending operation does not store the World ID ID token, authorization code o
 - Device flow is not used, because it does not implement `max_age` or `prompt` and its approval covers authentication, not the action.
 
 ### OIDC binding to session and operation
-- `state` is a fresh random value with at least 256 bits of entropy. Only its hash is stored in `auth_attempt`, keyed to `operation_id` and the initiating session.
+- `state` is a fresh random value with at least 256 bits of entropy. Only its hash is stored in `auth_attempt`, keyed to `operation_id`, the target account and the session stored in `auth_attempt.session` (the human application session current when the attempt starts).
 - `nonce` is a fresh random value; its hash is stored with the attempt and compared with the ID token's `nonce`.
 - The PKCE verifier is a fresh random value generated and kept on the server; only the S256 challenge is sent to the issuer. The verifier is sent only on the one code redemption.
-- The callback is accepted only if it arrives in the same application session that started the attempt and the attempt's operation is still in `awaiting_auth`. State, nonce and verifier are never reused across operations.
+- The callback is accepted only if it arrives in the same application session stored in `auth_attempt.session`, for the same operation and target account, and the attempt's operation is still in `awaiting_auth`. The later approve, deny and cancel actions stay bound to that same session, operation and account. State, nonce and verifier are never reused across operations.
 - Redirect URI registration and any issuer-side rules about it are to be confirmed against official docs at implementation.
 
 ## Callback validation
 The backend callback treats the result as untrusted until every step passes. Any failure ends the attempt as `failed`, leaves the operation unauthorized and executes nothing.
 
 1. An error response from the issuer (for example a cancellation, `login_required`, `interaction_required`, `unmet_authentication_requirements` or `access_denied`) closes the attempt and the operation stays blocked. The exact set and shape of authorization error responses for a cancelled browser attempt is to be confirmed against official docs at implementation.
-2. `state` matches a stored, open, unexpired attempt, and the callback comes from the initiating session and the target account.
+2. `state` matches a stored, open, unexpired attempt, and the callback comes from the session stored in `auth_attempt.session`, for the attempt's operation and the target account.
 3. The authorization code is redeemed once with the saved PKCE verifier and the registered client's authentication. A second redemption of the same attempt is refused locally. Client authentication method and credential handling are to be confirmed against official docs at implementation (the docs list RS256 `private_key_jwt` among supported client authentication standards).
 4. ID token validation: RS256 signature against the issuer's published keys, `iss` equal to the expected issuer, `aud` containing this application's client ID, `exp` in the future (allowing only a small, explicit clock tolerance), implausibly future timestamps rejected, and `nonce` equal to the stored nonce.
 5. Account and identity binding. If the account has a linked World ID, the returned `(iss, sub)` must equal the saved `linked_iss` and `linked_sub`. If the account is unlinked, continue only when the saved attempt has `enrollment_allowed` and the identity is not linked to another account. The pair is not stored yet.
@@ -177,12 +177,12 @@ After validation the application, not the issuer, collects and records the decis
 - Agent Pass approval never replaces Arc/x402 payment. A paid operation still needs a valid x402 payment authorization under spec 01 for the same fingerprint and price, and approval is not payment, authorization of payment, fulfillment or settlement. Per-request onchain settlement is not claimed.
 
 ## Execution
-Execution runs only after the agent or human resumes an `approved` operation. Immediately before execution the backend rechecks, and any failed check fails closed:
+Execution runs only after the agent or human resumes an `approved` operation. A human resume must match the approved operation, the session stored in the validated attempt (`auth_attempt.session`) and the target account. An agent resume must match the stored `agent_id` and `account_id`, authenticated with the agent's application credential. Neither path may bypass the approved, unused, unexpired operation or any recheck below. Immediately before execution the backend rechecks, and any failed check fails closed:
 
 - the operation is `approved`, not expired and not cancelled, and expiry has not been extended;
 - the approval is an unused `approved` row for this operation and is not superseded;
 - the fingerprint recomputed from the actual request equals the stored and approved fingerprint, and the account, agent, price or access consequence equals the stored values;
-- the application session or grant is still valid for the target account, the account has not been revoked, and the account still has permission to approve and run this operation;
+- for a human resume, the application session still equals `auth_attempt.session` of the validated attempt and is still valid for the target account; for an agent resume, the agent's credential is still valid and still matches the stored `agent_id` and `account_id`; the account has not been revoked, and the account still has permission to approve and run this operation;
 - the linked `(iss, sub)` still equals the one validated for this operation, and the stored `acr` and `amr` (as an unordered set) still equal the saved profile and `auth_time` still satisfies the saved policy, with `auth_time` within `max_auth_age_seconds` now;
 - for a paid operation, a valid x402 authorization exists under spec 01 for the same fingerprint and price.
 
@@ -222,7 +222,7 @@ Each item is demonstrated with real execution and recorded in [EVIDENCE.md](../.
 1. Complete successful journey: an agent proposes a paid or elevated request, the workflow is paused with the exact operation stored, fresh authentication with `max_age=0` is completed and validated by the backend, the human approves the displayed action in the application, the operation executes exactly once, and a paid request also completes its separate Arc/x402 payment under spec 01.
 2. Denied journey: the human denies; the protected action does not occur and the operation stays blocked.
 3. Expired or cancelled journey: an expired operation and a cancelled operation each remain blocked, including an attempt to resume after expiry and after cancellation.
-4. Backend-validation failure: at least one injected failure (for example wrong `state`, wrong `nonce`, wrong audience, wrong `(iss, sub)` or a result below the `acr`, `amr` or `auth_time` policy) is rejected and executes nothing. The passkey-only profile `["pop", "user", "mfa"]` is an explicit rejection case: it must be rejected under the baseline Orb policy and under the Face Auth policy even though it contains `pop`, while `["pop"]` (baseline) and `["pop", "face"]` (Face Auth, when required) are accepted with the correct `acr`, with `amr` order not mattering. An unvalidated client-side response is never accepted as authorization.
+4. Backend-validation failure: at least one injected failure (for example wrong `state`, wrong `nonce`, wrong audience, wrong `(iss, sub)`, a callback or approve, deny or cancel request from a different session or account, a human resume from a different session, an agent resume with a different `agent_id` or `account_id`, or a result below the `acr`, `amr` or `auth_time` policy) is rejected and executes nothing. The passkey-only profile `["pop", "user", "mfa"]` is an explicit rejection case: it must be rejected under the baseline Orb policy and under the Face Auth policy even though it contains `pop`, while `["pop"]` (baseline) and `["pop", "face"]` (Face Auth, when required) are accepted with the correct `acr`, with `amr` order not mattering. An unvalidated client-side response is never accepted as authorization.
 5. Changed-fingerprint rejection: changing the request after approval is refused and requires a new approval.
 6. Replay and double-execution prevention: a replayed callback, code, approval or resume, and concurrent resumes, produce at most one execution.
 7. Test coverage for the checks in Callback validation, Assurance policy, Execution and Fail-closed outcomes, including both acceptance and rejection cases.
