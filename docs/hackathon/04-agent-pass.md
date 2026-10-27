@@ -127,7 +127,7 @@ Pending operations, authentication attempts and approvals are separate tables in
 |---|---|---|
 | `pending_operation` | `id` (stable operation ID), `agent_id`, `account_id`, `method`, `route`, `canonical_query`, `fingerprint`, `price_usdc` (nullable), `access_consequence` (nullable), `linked_iss` and `linked_sub` (nullable; the linked World ID where already linked), `enrollment_allowed` (boolean), `required_acr`, `required_amr` (the exact accepted `amr` set, not a minimum), `max_auth_age_seconds` (checked at execution), `state`, `created`, `expires` | The operation, agent, account, fingerprint, price, assurance policy and expiry are written once at proposal and never updated; only `state` changes, and only through the transitions above. `expires` is never extended. The row holds no human application session: the proposal is made by the agent with its own application credential, so no human session exists yet. |
 | `auth_attempt` | `id`, `operation_id`, `session`, `state_hash`, `nonce_hash`, `pkce_verifier`, `started`, `expires`, `code_redeemed_at`, `result` (`pending`, `validated`, `failed`), `auth_time`, `acr`, `amr`, `iss`, `sub` | `session` is the human application session current when the attempt starts; it is written once. `state_hash` unique. At most one open attempt per operation; a new attempt supersedes the previous one. The PKCE verifier stays on the server and is cleared when the attempt closes. `iss` and `sub` are written only after every check passes. |
-| `approval` | `id`, `operation_id`, `auth_attempt_id`, `account_id`, `decision` (`approved`, `denied`), `fingerprint_at_decision`, `decided`, `used_at` | A partial unique index allows at most one `approved` row per operation. `used_at` is set once, in the same transaction that reserves the operation. A denial or cancellation row blocks the operation. |
+| `approval` | `id`, `operation_id`, `auth_attempt_id`, `account_id`, `decision` (`approved`, `denied`), `fingerprint_at_decision`, `decided`, `used_at` | A partial unique index allows at most one `approved` row per operation. `used_at` is set once, in the same transaction that reserves the operation. A row with `decision=denied` blocks the operation. Cancellation is represented by `pending_operation.state=cancelled`, not by a cancellation row in `approval`; the `decision` values are only `approved` and `denied`. A cancellation blocks the operation only if it is saved before execution; it cannot undo an executed operation. |
 | `world_id_link` | `account_id`, `iss`, `sub`, `linked_at` | `UNIQUE(iss, sub)` and one link per account. Written only by an explicit link or enrollment flow while the human is signed in, and only after validation (see below). Separate from the IDKit `verification` table. |
 
 The pending operation does not store the World ID ID token, authorization code or client credentials. The agent's application credential is stored or hashed under the same rules as spec 02 API keys.
@@ -173,7 +173,8 @@ After validation the application, not the issuer, collects and records the decis
 
 - The approval view (above) shows the stored operation and asks the human to approve or deny.
 - The decision is recorded in `approval` against the account, the operation, the validated attempt and the displayed fingerprint (`fingerprint_at_decision`). Approve is accepted only while the operation is `awaiting_approval`, the attempt is validated and unexpired, and the posted fingerprint equals the stored fingerprint.
-- Deny and cancel are recorded and block the operation. A cancellation blocks only if it is saved before execution; it cannot undo an executed operation.
+- Deny is recorded as an `approval` row with `decision=denied` (and the operation moves to `denied`), and it blocks the operation. Cancel is recorded by moving the operation to `cancelled` (`pending_operation.state=cancelled`); no cancellation row is written to `approval`. A cancellation blocks only if it is saved before execution; it cannot undo an executed operation.
+- Once an attempt exists, a cancel request must come from the session stored in `auth_attempt.session`. Before any attempt exists (operation still `proposed`), there is no human session to bind, so a cancel is accepted only from the agent's application credential matching the stored `agent_id` and `account_id`.
 - Agent Pass approval never replaces Arc/x402 payment. A paid operation still needs a valid x402 payment authorization under spec 01 for the same fingerprint and price, and approval is not payment, authorization of payment, fulfillment or settlement. Per-request onchain settlement is not claimed.
 
 ## Execution
@@ -199,8 +200,8 @@ Each case below leaves the protected action unexecuted. The operation ends in th
 
 | Case | Outcome |
 |---|---|
-| Human denies | `denied`; no execution |
-| Human or issuer cancels | `cancelled`; no execution |
+| Human denies | `approval` row with `decision=denied`; operation `denied`; no execution |
+| Human or issuer cancels | `pending_operation.state=cancelled` (no `approval` row); no execution |
 | Operation or attempt expires, including while awaiting approval or after approval but before execution | `expired`; no execution |
 | Stale: price, access policy, account permission or freshness window no longer satisfied | rejected at the execution recheck; new approval required |
 | Mismatched: state, nonce, issuer, audience, session, account or `(iss, sub)` | attempt `failed`; operation `rejected` or unchanged; no approval can be recorded |
