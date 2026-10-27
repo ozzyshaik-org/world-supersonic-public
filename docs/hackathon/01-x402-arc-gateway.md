@@ -95,6 +95,23 @@ Vectors 5 and 6 differ on purpose: a space and a plus sign are different values.
 | R8 | `GET /v1/balance?address=0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045` with a one-byte body | `400` body not empty |
 | R9 | `POST /v1/balance` | `405` method outside the committed paid flow |
 
+## ENS names and the fingerprint
+Ordinary ENS support ([03](03-ens-integration.md)) stays on `/v1/balance` and `/v1/transactions`. **Decision:** for a paid request on those routes, the fingerprint covers the ENS name exactly as the client supplied it, in its canonical-query form. It does not cover the address the name resolves to.
+
+- The fingerprint is computed before any resolution and is the same on every retry.
+- What the payer authorized is therefore fixed by the request they signed for, and cannot be changed by a later change to the name's mutable ENS records.
+- Names are compared as received. `Vitalik.eth` and `vitalik.eth` are different requests with different fingerprints, and no ENS normalization is applied inside the fingerprint (vectors 10 and 11). Any normalization of the name happens in the Go API after payment acceptance and does not alter the stored fingerprint.
+- The resolved address, with the time and block of resolution, is recorded next to the stored response and receipt and returned in the response next to the supplied name, as in spec 03. Once the authorization is `fulfilled`, a retry returns the stored response unchanged, even if the name resolves differently later.
+- The same payment authorization for a different name that happens to resolve to the same address is a different request: the nonce is refused with `409` (`authorization_binding_mismatch`).
+- A `404` (name does not resolve) or `400` (malformed name) from the Go API is an upstream error. It is returned to the client, nothing is stored as a fulfilled response, and the authorization is not charged and stays under the retry and void rules above.
+- Switching to a resolved-address fingerprint later is a spec amendment with a new fingerprint version.
+- Agent Pass operations do not use ENS names: they accept literal addresses only (see [04](04-agent-pass.md)).
+
+| # | Raw request target | Canonical query (line 4) | SHA-256 |
+|---|---|---|---|
+| 10 | `/v1/balance?address=vitalik.eth` | `address=vitalik.eth` | `36407a0aefb250af55ad8cd129236a8b87d9a19481733d76951522fa1f2f4d0d` |
+| 11 | `/v1/balance?address=Vitalik.eth` | `address=Vitalik.eth` | `07d110ae01fb259a82cba9acdad88f147257aba96f0e154370476ebc1580e39e` |
+
 ## Ledger and authorization binding
 The ledger has one row per authorization key. The insert of a new key is atomic, so concurrent first arrivals produce one row. Each row holds the **authorization binding**, written once at insert and never changed:
 
@@ -229,7 +246,7 @@ A route represented as paid is reachable only through the seller. Direct access 
    - An Arc Studio-built web frontend (web UI) and a backend (the seller service), both shown working together in the demo. The one-command CLI is a supplemental test utility and does not count as the frontend.
    - An architecture diagram of client, seller service, Circle Gateway, Go API and Arc.
    - Integration feedback on Arc Studio, Circle Gateway and Arc Testnet.
-10. Fingerprint tests: every test vector (1 to 9) produces the listed canonical query and SHA-256, and every rejection vector (R1 to R9) produces the listed result and no `402` challenge.
+10. Fingerprint tests: every test vector (1 to 11) produces the listed canonical query and SHA-256, and every rejection vector (R1 to R9) produces the listed result and no `402` challenge.
 11. Settlement batch tests:
     - Two settlement workers claim at the same time: each fulfilled authorization joins exactly one batch, with one `batch_id`, and no row is claimed twice.
     - A batch resumed after a crash keeps its `batch_id` and its members.
@@ -238,3 +255,4 @@ A route represented as paid is reachable only through the seller. Direct access 
     - `nonce_already_used` on a resubmission is treated as uncertain, not as a rejection.
 12. The settlement-state mapping (`received`, `batched`, `confirmed`, `completed`, `failed` to ledger states) and the nonce scope are re-checked against Circle's current documentation at implementation, and any difference is recorded.
 13. Agent Pass composition tests (spec 04 lists the full set): payment presented directly for an `agent_pass` route is never fulfilled; an authorization held without a reservation is never batched; a lease takeover on an `agent_pass` route passes the reservation check for both workers and still gives one fulfillment and at most one settlement; a void after reservation is never fulfilled or settled.
+14. ENS fingerprint tests (PLANNED, ordinary routes only): the fingerprint of a request with an ENS name equals vectors 10 and 11 and is computed over the name, not the resolved address; two names that resolve to the same address have different fingerprints, and reusing one authorization's nonce for the other name is refused with `409`; a change in what the name resolves to between attempts changes neither the fingerprint nor an already stored response; an unresolvable name returns the upstream error without a fulfilled result or a charge.
