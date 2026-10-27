@@ -102,10 +102,13 @@ The approval view is rendered only from the stored pending-operation row, never 
 | Operation ID       <operation id>                                |
 | Method and route   GET /v1/transactions                          |
 | Query (canonical)  address=<shortened address>, limit=<n>        |
-| Consequence        Paid request: <price from the route price     |
-|                    table> USDC via x402 on Arc Testnet.          |
-|                    Approving does NOT pay. Payment is a          |
-|                    separate x402 authorization.                  |
+| Consequence        Paid request. Approving does NOT pay;         |
+|                    payment is a separate x402 authorization,     |
+|                    submitted only after you approve.             |
+|   Amount           <whole>.<fraction> USDC (<n> base units)      |
+|   Network          <payment network>                             |
+|   Asset            <payment asset>                               |
+|   Pay to           <shortened payment address>                   |
 |                    (or: Elevated access: <named access change>)  |
 | Request fingerprint  sha256:<first 12 hex of the stored value>   |
 | Expires            <expiry time and countdown>; not extended     |
@@ -120,7 +123,7 @@ The approval view is rendered only from the stored pending-operation row, never 
 | Operation ID | Stable ID created at proposal. |
 | Method and route | Stored values of the exact request. |
 | Query summary | A rendering of the canonicalized query string stored with the operation. Long values are shortened for display; the full canonical string is kept server-side and is what the fingerprint covers. |
-| Price or access consequence | For a paid route, the price copied from the spec 01 route price table at proposal time, shown with the asset and network. For an elevated request, a named access change. A price that changes after proposal makes the operation stale and requires a new approval. Not applicable consequences are omitted, not invented. |
+| Payment terms or access consequence | For a paid route, the stored `payment_amount`, `payment_network`, `payment_asset` and `payment_pay_to` from the approved snapshot (Data model). The amount is shown in base units and as a human-readable USDC value derived by integer arithmetic. For an elevated request, a named access change. A change to any payment term after proposal makes the operation stale and requires a new approval. Not applicable consequences are omitted, not invented. |
 | Request fingerprint | The SHA-256 fingerprint defined in spec 01 (method, route path, canonicalized query string, body), shown truncated. The approve control submits the operation ID and the full fingerprint; the server compares both with the stored row. The initial scope is requests with an empty body, so no request body is stored or displayed. |
 | Expiry | The stored expiry. Checking status never extends it. |
 
@@ -140,13 +143,28 @@ Pending operations, authentication attempts and approvals are separate tables in
 
 | Table | Columns | Constraints |
 |---|---|---|
-| `pending_operation` | `id` (stable operation ID), `agent_id`, `account_id`, `method`, `route`, `canonical_query`, `fingerprint`, `price_usdc` (nullable), `access_consequence` (nullable), `linked_iss` and `linked_sub` (nullable; the linked World ID where already linked), `enrollment_allowed` (boolean), `required_acr`, `required_amr` (the exact accepted `amr` set, not a minimum), `max_auth_age_seconds` (checked at execution), `state`, `created`, `expires` | The operation, agent, account, fingerprint, price, assurance policy and expiry are written once at proposal and never updated (`method` is `GET` and the body empty in the committed flow, and `fingerprint` is the spec 01 `v1` request fingerprint, with `canonical_query` its canonical query); only `state` changes, and only through the transitions above. `expires` is never extended. The row holds no human application session: the proposal is made by the agent with its own application credential, so no human session exists yet. |
+| `pending_operation` | `id` (stable operation ID), `agent_id`, `account_id`, `method`, `route`, `canonical_query`, `fingerprint`, `payment_network` (nullable), `payment_asset` (nullable), `payment_pay_to` (nullable), `payment_amount` (nullable), `access_consequence` (nullable), `linked_iss` and `linked_sub` (nullable; the linked World ID where already linked), `enrollment_allowed` (boolean), `required_acr`, `required_amr` (the exact accepted `amr` set, not a minimum), `max_auth_age_seconds` (checked at execution), `state`, `created`, `expires` | The operation, agent, account, fingerprint, payment snapshot, assurance policy and expiry are written once at proposal and never updated (`method` is `GET` and the body empty in the committed flow, and `fingerprint` is the spec 01 `v1` request fingerprint, with `canonical_query` its canonical query); only `state` changes, and only through the transitions above. `expires` is never extended. The row holds no human application session: the proposal is made by the agent with its own application credential, so no human session exists yet. |
 | `auth_attempt` | `id`, `operation_id`, `session`, `state_hash`, `nonce_hash`, `pkce_verifier`, `started`, `expires`, `code_redeemed_at`, `result` (`pending`, `validated`, `failed`, `superseded`), `auth_time`, `acr`, `amr`, `iss`, `sub` | `session` is the human application session current when the attempt starts; it is written once. `state_hash` unique. At most one open (`pending`) attempt per operation, enforced by a partial unique index. Starting a replacement attempt (only while the operation is `awaiting_auth`) atomically, in one transaction, closes the previous `pending` attempt as `superseded` and inserts the new one with a fresh state, nonce and PKCE verifier; if either statement fails, neither is applied. State, nonce and PKCE values are never reused across attempts. The PKCE verifier stays on the server and is cleared when the attempt closes. `iss` and `sub` are written only after every check passes. |
 | `approval` | `id`, `operation_id`, `auth_attempt_id`, `account_id`, `decision` (`approved`, `denied`), `fingerprint_at_decision`, `decided`, `used_at` | A partial unique index allows at most one `approved` row per operation. `used_at` is set once, in the same transaction that reserves the operation. A row with `decision=denied` blocks the operation. Cancellation is represented by `pending_operation.state=cancelled`, not by a cancellation row in `approval`; the `decision` values are only `approved` and `denied`. A cancellation blocks the operation only if it is saved before execution; it cannot undo an executed operation. |
-| `payment_binding` | `operation_id`, `auth_key`, `approval_id`, `payer`, `network`, `asset`, `pay_to`, `price`, `fingerprint`, `state`, `reserved_at`, `closed_at` | Defined in Composition with Arc/x402. `UNIQUE(operation_id)` and `UNIQUE(auth_key)`. Written in the execution transaction, so `pending_operation` stays immutable apart from `state`. Present only for paid operations. |
+| `payment_binding` | `operation_id`, `auth_key`, `approval_id`, `payer`, `valid_after`, `valid_before`, `network`, `asset`, `pay_to`, `amount`, `fingerprint`, `state`, `reserved_at`, `closed_at` | Defined in Composition with Arc/x402. `UNIQUE(operation_id)` and `UNIQUE(auth_key)`. Written in the execution transaction, so `pending_operation` stays immutable apart from `state`. Present only for paid operations. `network`, `asset`, `pay_to` and `amount` are copied from the operation's `payment_*` snapshot. |
 | `world_id_link` | `account_id`, `iss`, `sub`, `linked_at` | `UNIQUE(iss, sub)` and one link per account. Written only by an explicit link or enrollment flow while the human is signed in, and only after validation (see below). Separate from the IDKit `verification` table. |
 
 The pending operation does not store the World ID ID token, authorization code or client credentials. The agent's application credential is stored or hashed under the same rules as spec 02 API keys.
+
+### Approved operation snapshot (payment terms)
+For a paid operation the human approves a request **and** the payment terms for it, so the terms are stored with the operation, not looked up later.
+
+| Field | Rule |
+|---|---|
+| `payment_network` | The payment network from the spec 01 payment requirements at proposal (Arc Testnet) |
+| `payment_asset` | The asset (USDC), as the exact asset identifier of the requirements |
+| `payment_pay_to` | The seller's `payTo` address from the requirements |
+| `payment_amount` | The price in atomic USDC base units (USDC has 6 decimals, so one cent is `10000`), stored as a base-10 integer string or a bigint. **No floating-point value is used anywhere.** |
+
+- All four are written once at proposal, with the fingerprint, and are never updated. They are all `NULL` for an elevated (not paid) operation and all non-`NULL` for a paid one.
+- The approval view renders them from the stored row, the execution recheck compares the presented payment with exactly these values, and the `payment_binding` copies them. No later source is consulted: not the current price table, not a client-supplied value.
+- **Any change makes the operation stale.** If the price table, the network, the asset or `payTo` differs from the stored snapshot when the paid request arrives, the request is refused (`409` `agent_pass_operation_stale`) before any `settle()` call, the approval stays unused, and a new proposal and a new approval are required. A snapshot is never edited in place.
+- The human-readable amount in the approval view is derived by integer arithmetic only: the whole part is `payment_amount / 1000000` and the fractional part is the remainder padded to six digits, with trailing zeros trimmed to at least two (so `10000` is shown as `0.01 USDC`). The stored base-unit value is shown beside it so a human can compare them.
 
 ## Authentication request
 - The backend starts a new OIDC authorization request for each attempt. It never reuses a previous result, an existing browser session at the issuer, or an earlier attempt.
@@ -191,7 +209,7 @@ After validation the application, not the issuer, collects and records the decis
 - The decision is recorded in `approval` against the account, the operation, the validated attempt and the displayed fingerprint (`fingerprint_at_decision`). Approve is accepted only while the operation is `awaiting_approval`, the attempt is validated and unexpired, and the posted fingerprint equals the stored fingerprint.
 - Deny is recorded as an `approval` row with `decision=denied` (and the operation moves to `denied`), and it blocks the operation. Cancel is recorded by moving the operation to `cancelled` (`pending_operation.state=cancelled`); no cancellation row is written to `approval`.
 - Approve and deny are human-only actions. Each requires the bound application session (`auth_attempt.session`) and anti-CSRF protection. An agent cannot approve or deny on the human's behalf.
-- Agent Pass approval never replaces Arc/x402 payment. A paid operation still needs a valid x402 payment authorization under spec 01 for the same fingerprint and price, and approval is not payment, authorization of payment, fulfillment or settlement. Per-request onchain settlement is not claimed. See Composition with Arc/x402.
+- Agent Pass approval never replaces Arc/x402 payment. A paid operation still needs a valid x402 payment authorization under spec 01 for the same fingerprint and the approved payment terms, and approval is not payment, authorization of payment, fulfillment or settlement. Per-request onchain settlement is not claimed. See Composition with Arc/x402.
 
 ### Cancellation
 Who may cancel:
@@ -212,7 +230,7 @@ Execution runs only after the agent or human resumes an `approved` operation. A 
 
 - the operation is `approved`, not expired and not cancelled, and expiry has not been extended;
 - the approval is an unused `approved` row for this operation;
-- the fingerprint recomputed from the actual request equals the stored and approved fingerprint, and the account, agent, price or access consequence equals the stored values;
+- the fingerprint recomputed from the actual request equals the stored and approved fingerprint, and the account, agent, payment snapshot or access consequence equals the stored values;
 - for a human resume, the application session still equals `auth_attempt.session` of the validated attempt and is still valid for the target account; for an agent resume, the agent's credential is still valid and still matches the stored `agent_id` and `account_id`; the account has not been revoked, and the account still has permission to approve and run this operation;
 - the linked `(iss, sub)` still equals the one validated for this operation, and the stored `acr` and `amr` (as an unordered set) still equal the saved profile and `auth_time` still satisfies the saved policy, with `auth_time` within `max_auth_age_seconds` now;
 - for a paid operation, the request carries the operation identifier, and the payment it presents passes the spec 01 local payment-structure checks (well-formed authorization, 32-byte nonce, `validAfter` already reached, `validBefore` at least the minimum Circle documents ahead). Its network, asset, `payTo` and amount equal the operation's stored payment snapshot and the current price table entry (see Data model), and its derived `auth_key` and nonce are not present in the ledger. No Gateway call is made to check any of this.
@@ -221,7 +239,7 @@ Execution runs only after the agent or human resumes an `approved` operation. A 
 
 **Stable IDs and uncertain outcomes.** The operation ID is the identifier for the protected action. After a timeout or lost response the backend asks the owning component (the ledger and the Go API result store from spec 01) whether the operation completed. It retries only under the same operation ID and only where that component guarantees a duplicate cannot run twice (for an idempotent read, the spec 01 ledger and lease fencing give that guarantee; see Composition with Arc/x402), never by consuming a second approval, never by creating a second binding and never by asking the human to authenticate again. If the result cannot be determined, the operation is `uncertain`, is not retried blindly, and is investigated; the ledger's nonce reconciliation (spec 01) can still move it back to `executing` or to a final state.
 
-**Changed binding.** A changed operation, route, query, price, account or fingerprint is a different operation and requires a new proposal and a new approval. A retried or extended attempt never carries an old approval forward.
+**Changed binding.** A changed operation, route, query, payment network, asset, `payTo` or amount, account or fingerprint is a different operation and requires a new proposal and a new approval. A retried or extended attempt never carries an old approval forward.
 
 **No token forwarding.** The World ID ID token and authorization code are never sent to the Go API, the seller service's downstream calls, any MCP server or any other API. Downstream calls use the application's own server-side credentials as defined in spec 01. The assurance result is conveyed only through server state.
 
@@ -309,12 +327,12 @@ Each case below leaves the protected action unexecuted, or, where a payment was 
 | Cancel from a wrong agent credential or wrong human session, operation or account, or after `executing`, `executed` or `uncertain`, or after the execution reservation committed | refused; state unchanged; an executed or reserved operation is not undone |
 | Cancel and resume race | exactly one conditional transition wins; if cancel wins, execution refuses; if the reservation wins, cancel refuses; at most one execution |
 | Operation or attempt expires, including while awaiting approval or after approval but before execution | `expired`; no execution |
-| Stale: price, access policy, account permission or freshness window no longer satisfied | rejected at the execution recheck; new approval required |
+| Stale: payment terms, access policy, account permission or freshness window no longer satisfied | rejected at the execution recheck, before any `settle()` call; new approval required |
 | Mismatched: state, nonce, issuer, audience, session, account or `(iss, sub)` | attempt `failed`; operation `rejected` or unchanged; no approval can be recorded |
 | Replacement authentication attempt started | previous `pending` attempt closed as `superseded` in the same transaction; its callback is refused; state, nonce and PKCE values are never reused; operation stays `awaiting_auth` |
 | Assurance below policy (`acr`, `amr` or `auth_time`), including a passkey-only result with `amr` `["pop", "user", "mfa"]` (it contains `pop` but is rejected) and any `amr` set other than the saved profile | attempt `failed`; no approval can be recorded |
 | Replayed callback, code, approval or resume request, including a callback for a `superseded` attempt | refused; at most one execution |
-| Changed fingerprint, route, query, price or account | refused; new proposal and new approval required |
+| Changed fingerprint, route, query, payment network, asset, `payTo`, amount or account | refused; new proposal and new approval required |
 | Dependency failure: issuer, discovery document, signing keys or token endpoint unreachable; store unavailable; payment dependency failing | operation stays blocked; nothing executes; no fallback to an unvalidated result |
 | Paid operation: payment presented without a valid operation reservation, reused, changed or stale | See Composition with Arc/x402: refused before any `settle()` call; nothing submitted; approval unused where the reservation did not commit |
 | Cancellation, denial or expiry after the execution reservation, including after Gateway acceptance | Refused or not applicable; the operation is not undone and nothing stops an accepted authorization from being batched and settled by Gateway |
