@@ -118,6 +118,7 @@ Requirements: Go ≥ 1.25, Rust stable, ClickHouse, Valkey/Redis.
 ```bash
 cp .env.example .env            # fill in; never commit
 # schema (see schema/; complete_schema.sql is a raw SHOW CREATE dump; quick-start steps are untested)
+clickhouse-client --query "CREATE DATABASE IF NOT EXISTS worldchain"   # the schema files do not create it
 clickhouse-client --multiquery < schema/01_core_schema.sql
 clickhouse-client --multiquery < schema/02_materialized_views.sql
 
