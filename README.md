@@ -14,13 +14,26 @@ derives DeFi / token / MEV views from them, and serves the result over REST and 
 > AI coding agents assisted with implementation (code generation, refactoring, tests and review) under that
 > human direction. Treat the code as you would any fast-moving, partly machine-written codebase: read it before you rely on it.
 
+## Why Supersonic
+
+Supersonic is an integrated stack for working with World Chain at the execution level, from the node to an investigation UI, on infrastructure you operate. In this repository:
+
+* **Execution-level indexing.** `worldchain-exex` runs as a reth Execution Extension inside `op-reth` and streams each committed block (header, transactions, call traces, logs) to `tank-engine` over gRPC on a unix socket.
+* **Raw data in a database you control.** Blocks, transactions, call traces and logs are written to your own ClickHouse (`world_blocks`, `world_transactions`, `world_traces`, `world_logs`), so you can query them directly with SQL.
+* **Derived datasets.** `tank-engine` derives token transfers, DEX swaps and DeFi events from the raw data, and `mev-detector` adds MEV rows (priority bribes, bot spam, atomic arbitrage and sandwich candidates). `mev-detector` runs as a separate process over blocks that are already fully ingested, in chunks, so MEV rows trail the chain head.
+* **REST and WebSocket access.** `rpc-gateway` serves `/v1/*` REST (see [`docs/openapi.yaml`](docs/openapi.yaml)) with API-key tiers and rate limits; `cmd/api` exposes `/ws` with API-key and rate-limit checks; the current Valkey fail-open behavior and unauthenticated `edge` WebSocket are disclosed under known limits below.
+* **Investigation graphs (SGIP).** `sgip` renders transaction call-trace graphs and contract and wallet views from the indexed data, and renders a contract's control-flow graph (CFG) when one is stored for it. The decompiler that produces stored CFGs is not part of this repository.
+* **One workflow.** Extraction (ExEx) → indexed datasets (ClickHouse) → APIs (REST/WebSocket) → investigation UI (SGIP).
+
+Dated scale measurements and the known limits (including that the ExEx build is not yet reproducible from this repository) are under [What is live and what is not](#what-is-live-and-what-is-not-known-limits).
+
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 
 This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated
 tag `baseline-pre-ethglobal-mumbai` plus the commits made before the start tag (documentation and CI so far). Event work is everything after
 the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
-Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory remains pending before submission), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet) and [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo).
+Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory of the existing assets is included; origin of those assets is not confirmed), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet) and [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo).
 
 Planned during the hackathon (committed scope—specifications only, not yet implemented):
 
@@ -50,7 +63,7 @@ flowchart LR
     RETH -- "gRPC over unix socket<br/>(proto/nodestream.proto)" --> TANK["tank-engine<br/>ingest, healers, view matcher"]
     TANK --> CH[("ClickHouse<br/>world_* raw tables<br/>api_* derived tables")]
     CH --> GW["rpc-gateway :8081<br/>REST /v1/*, API keys, rate limits"]
-    CH --> API["supersonic-api :8090<br/>WebSocket /ws (key-gated)"]
+    CH --> API["supersonic-api :8090<br/>WebSocket /ws (API-key and rate-limit checks; see known limits)"]
     CH --> SGIP["sgip :8095<br/>explorer / CFG visualizer"]
     CH <--> MEV["mev-detector"]
     GW <--> VK[(Valkey cache)]
@@ -67,8 +80,8 @@ flowchart LR
 | `exex/` | Rust (reth ExEx) | unix socket | Streams committed blocks (header, txs, traces, logs) out of `op-reth` | Running in production. **Build not reproducible from this repo** (private reth checkout, see `exex/README.md`) |
 | `tank-engine/` | Rust | – | Consumes the ExEx stream, writes ClickHouse, backfills and heals gaps, matches logs into derived `api_*` tables | Running in production (`cargo check` passes) |
 | `cmd/rpc-gateway/` | Go | 8081 | REST API `/v1/*`, Valkey cache + singleflight, API-key tiers and rate limits, Prometheus `/metrics`, Swagger `/docs` | Running; `go build`/`go vet` pass |
-| `cmd/api/` + `web/` | Go | 8090 | Key-gated WebSocket `/ws` that polls recent DEX/DeFi/NFT rows and pushes them to the edge; serves a static page | Running; `go build`/`go vet` pass |
-| `edge/` | Rust (axum) | 8091 | WebSocket fan-out of messages received from supersonic-api over a unix socket | Running (`cargo check` passes) |
+| `cmd/api/` + `web/` | Go | 8090 | WebSocket `/ws` with API-key and rate-limit checks (see known limits) that polls recent DEX/DeFi/NFT rows and pushes them to the edge; serves a static page | Running; `go build`/`go vet` pass |
+| `edge/` | Rust (axum) | 8091 | WebSocket fan-out of messages received from supersonic-api over a unix socket; its `/ws` is unauthenticated (see known limits) | Running (`cargo check` passes) |
 | `sgip/` | Python (FastAPI) | 8095 | Contract / transaction / wallet explorer and control-flow-graph visualizer over ClickHouse | Running |
 | `mev-detector/` | Python | – | Scans indexed blocks for MEV patterns into `world_mev_activity`; optional Telegram/Discord alerts | Running |
 | `schema/` | SQL | – | ClickHouse DDL (tables, materialized views) | Reference dumps |
@@ -92,7 +105,7 @@ Not live / not finished — said plainly:
   (env `ADMIN_TOKEN`) and is disabled when the variable is unset.
 * The gateway's embedded OpenAPI spec lists 5 REST routes; the code registers more (`/v1/defi/events`, `/v1/mev/analytics`,
   `/v1/portfolio`, `/v1/health/system`, `/v1/auth/keys`). `docs/openapi.yaml` documents all of them.
-* `edge` `/ws` has no authentication; `cmd/api` fails open on key checks if Valkey is unavailable.
+* `edge` `/ws` has no authentication (`edge/src/main.rs` registers `/ws` with no key check and binds `0.0.0.0:8091`). `cmd/api` fails open on key checks if Valkey is unavailable: in `Gatekeeper` (`cmd/api/main.go`), if the Valkey client could not be created, or the key/rate-limit check script returns an error, the request is passed through with no key validation and no rate limit. A request with no `api_key` parameter is still refused (401).
 * CORS is `*` on the gateway and sgip.
 * Single-host deployment, no high-availability story, and no automated test suite for the Go services.
 * An older Go ingester (`internal/tank`) was superseded by `tank-engine` and is not included.
@@ -100,11 +113,20 @@ Not live / not finished — said plainly:
 
 ## Quick start (local, partial; these steps were compile-checked but not run end to end)
 
-Requirements: Go ≥ 1.25, Rust stable, ClickHouse, Valkey/Redis.
+Requirements: Go ≥ 1.25, Rust stable, ClickHouse, Valkey/Redis, Python 3 (use a virtual environment), and for the Rust crates `protoc` (tank-engine) plus `pkg-config` and OpenSSL development headers (tank-engine).
+
+Notes from a clean-clone run on Debian 13 (these steps are still partial; see the limits below):
+
+* The services read configuration from environment variables; `.env` is not loaded automatically, and it is not safe to `source` as-is (the placeholder values are not valid shell). Export the variables you need before starting a service.
+* `pip install` into the system Python fails on current Debian and Ubuntu (PEP 668); create a virtual environment first (`python3 -m venv .venv && . .venv/bin/activate`).
+* The two quick-start schema files cover the core `world_*` tables only. `rpc-gateway`, `api`, `sgip` and `mev-detector` also query tables that they do not create (for example `world_mev_activity`, `world_contracts`, `ingest_checkpoints`, `api_depeg_drift`); until those exist, the affected endpoints return errors. `schema/complete_schema.sql` is a raw dump and does not apply as-is.
+* The ExEx (`exex/`) did not build from a clean clone in this run; the observed failures are recorded in `exex/README.md`. The existing note that its build is not reproducible from this repository stands.
+* `tank-engine` builds with the prerequisites above, but at startup it requires a writable ingest-journal directory at `/var/lib/tank-engine/ingest-pending` (path fixed in `tank-engine/src/ingest_journal.rs`) and a live ExEx stream; without them it logs `INGEST_JOURNAL_UNAVAILABLE` and retries.
 
 ```bash
 cp .env.example .env            # fill in; never commit
-# schema (see schema/; complete_schema.sql is a raw SHOW CREATE dump; quick-start steps are untested)
+# core schema only; complete_schema.sql is a raw SHOW CREATE dump; see the limitations above
+clickhouse-client --query "CREATE DATABASE IF NOT EXISTS worldchain"   # the schema files do not create it
 clickhouse-client --multiquery < schema/01_core_schema.sql
 clickhouse-client --multiquery < schema/02_materialized_views.sql
 

@@ -27,15 +27,48 @@ from this baseline section. See [CONTINUITY.md](CONTINUITY.md) for the baseline/
 
 | Area | AI tools used | AI contribution | Human contribution and review | Supporting artifacts |
 |---|---|---|---|---|
-| Architecture/specifications | Cursor, Claude Code, Grok Bot (across the project; not mapped per area); Kimi (review and documentation drafting/revision only) | AI assisted drafting, including the pre-kickoff specs in `docs/hackathon/` (PR #3, PR #4) | The owner designed the architecture and decided; the owner reviewed and edited the pre-kickoff specs (PR #3, PR #4) | `docs/hackathon/01-x402-arc-gateway.md`, `docs/hackathon/02-world-id-gating.md`, `docs/hackathon/03-ens-integration.md`. Git commit messages. Sanitized specs and prompts: None published yet; sanitized artifacts may be added after review for secrets. |
+| Architecture/specifications | Cursor, Claude Code, Grok Bot (across the project; not mapped per area); Kimi (review and documentation drafting/revision only) | AI assisted drafting, including the pre-kickoff specs in `docs/hackathon/` (PR #3, PR #4) | The owner designed the architecture and decided; the owner reviewed and edited the pre-kickoff specs (PR #3, PR #4) | `docs/hackathon/01-x402-arc-gateway.md`, `docs/hackathon/02-world-id-gating.md`, `docs/hackathon/03-ens-integration.md`. Git commit messages. Sanitized specs: see Published AI artifacts below. Prompts: none published yet. |
 | Backend/indexer code | Cursor, Claude Code, Grok Bot (across the project; not mapped per area) | AI assisted backend and indexer code. Public Git history records commits and file changes. Private Cursor and Claude Code session history provides additional provenance where available. Together they do not constitute a complete per-file AI/authorship map, and exact per-file AI proportions were not tracked. | The owner designed the architecture, made operational decisions and operated the stack, reviewed AI-written code, ran tests and verified results, and wrote some code by hand | Git commit messages. Private Cursor and Claude Code session history (not published). Sanitized artifacts: None published yet; sanitized artifacts may be added after review for secrets. |
-| Documentation | Cursor, Claude Code, Grok Bot (across the project; not mapped per area); Kimi (review and documentation drafting/revision only) | AI assisted documentation, including PR #3, PR #4 and PR #5 | The owner reviewed AI-written documentation and edited the PR #3 and PR #4 documentation. The teammate owns pricing, documentation and positioning on the business side | Git commit messages. Sanitized artifacts: None published yet; sanitized artifacts may be added after review for secrets. |
-| Tests and CI | Cursor, Claude Code, Grok Bot (across the project; not mapped per area) | AI assisted tests and CI. CI currently only builds and vets the Go services; it does not run tests | The owner ran tests and verified results | Git commit messages. Sanitized test plans: None published yet; sanitized artifacts may be added after review for secrets. |
-| UI/media/assets | Not yet determined; will be confirmed before submission | Not yet determined; will be confirmed before submission | The teammate owns the demo and submission video. Review of any generated assets: not yet determined; will be confirmed before submission | Not yet determined; will be confirmed before submission |
+| Documentation | Cursor, Claude Code, Grok Bot (across the project; not mapped per area); Kimi (review and documentation drafting/revision only) | AI assisted documentation, including PR #3, PR #4 and PR #5 | The owner reviewed AI-written documentation and edited the PR #3 and PR #4 documentation. The teammate owns pricing, documentation and positioning on the business side | Git commit messages. Planning documents: `DEMO_PLAN.md`, `EVIDENCE.md`, see Published AI artifacts below. Prompts: none published yet. |
+| Tests and CI | Cursor, Claude Code, Grok Bot (across the project; not mapped per area) | AI assisted tests and CI. CI currently only builds and vets the Go services; it does not run tests | The owner ran tests and verified results | Git commit messages. Evidence register and test-plan template (not results): `EVIDENCE.md`, see Published AI artifacts below. Prompts: none published yet. |
+| UI/media/assets | Origin not confirmed for the existing assets; the project-wide tool list above is not mapped to them | Origin and AI involvement not confirmed for the existing assets; git history does not record it | The teammate owns the demo and submission video. Review of the existing UI and media assets: not confirmed. Git records `ozzyshaik` as author and committer; this does not establish who designed the assets or whether AI assisted them (see the inventory below) | UI/media asset inventory below |
 
 ## Published AI artifacts
 
-None published yet; sanitized artifacts may be added after review for secrets.
+These are specification, planning and test-plan documents that were already public in this repository. This file states above that the pre-kickoff specifications and documentation were drafted with AI assistance and reviewed by the owner, and listing them here adds no new content. Each was scanned on 2026-10-27 for credentials and keys, connection strings, private hostnames and IP addresses, filesystem paths and sensitive server configuration, and none was found.
+
+| Artifact | Kind | Status |
+|---|---|---|
+| `docs/hackathon/01-x402-arc-gateway.md` | specification (planned, not implemented) | public in the repository, scan passed |
+| `docs/hackathon/02-world-id-gating.md` | specification (planned, not implemented) | public in the repository, scan passed |
+| `docs/hackathon/03-ens-integration.md` | specification (planned, not implemented) | public in the repository, scan passed |
+| `EVIDENCE.md` | evidence register and test-plan template (nothing run yet) | public in the repository, scan passed |
+| `DEMO_PLAN.md` | demo plan (not an existing demo) | public in the repository, scan passed |
+
+Prompts: none published yet. No prompt or session transcript has been added; private Cursor and Claude Code session history is not published. Sanitized prompts may be added after review for secrets.
+
+Artifacts generated during the event (after the tag `ethglobal-mumbai-2026-start` exists) can be appended here during the hackathon, with their own scan.
+
+## UI/media asset inventory
+
+Scope: the UI, diagrams, images and other media that exist in the repository at the time of writing (pre-start). Facts in this section come from the repository tree and its Git history (author, committer, date, commit message), not from owner confirmation. Git history does not say whether AI tools were involved in any of these assets, and it does not say who designed them. Where origin cannot be confirmed from Git, this file says "origin not confirmed" and does not guess.
+
+| Path | Type | Size | Git evidence | Origin and AI/human involvement |
+|---|---|---|---|---|
+| `web/index.html` | Static HTML/CSS/JS page, "Contract CFG Visualizer"; served at `/` by `cmd/api`; loads d3 and d3-graphviz from public CDNs | 5,420 bytes (107 lines) | Added in `241af1f` "Initial public release" (tag `baseline-pre-ethglobal-mumbai`), author and committer `ozzyshaik`, 2026-10-24 15:57 IST. No later commit changes it | Origin not confirmed |
+| `sgip/main.py`, embedded `DASHBOARD_HTML` (lines 650-1365) | HTML/CSS/JS dashboard served by `sgip` at `/` and `/embed`; loads Cytoscape.js and dagre from public CDNs | about 20.9 KB inside a 46,157-byte Python file | Added in `241af1f`, same author, committer and date. No later commit changes the file | Origin not confirmed |
+| `cmd/rpc-gateway/main.go`, embedded `swaggerHTML` (lines 331-363) | HTML page loading Swagger UI from a public CDN; served at `/docs` | about 1 KB inside a 57,110-byte Go file | Added in `241af1f`, same author, committer and date. No later commit changes the file | Origin not confirmed |
+| `README.md`, Mermaid architecture flowchart | Diagram as Mermaid text rendered by GitHub; no image file | 773 bytes of text inside README.md | Added in `241af1f`, same author, committer and date | Origin not confirmed |
+| `docs/hackathon/01-x402-arc-gateway.md`, Mermaid state diagram | Diagram as Mermaid text rendered by GitHub; no image file | 562 bytes of text inside the spec | Added in `e21e072` "docs: apply owner review: Arc fulfillment state machine, World ID recovery and revocation, scope wording", author and committer `ozzyshaik`, 2026-10-26 10:27 IST. The commit message records an owner review of the spec; it does not say who drew the diagram or whether AI was used | Origin not confirmed. The spec it belongs to is covered by the AI-assistance statement above for PR #3 and PR #4 |
+
+What the inventory could not confirm:
+
+- Who designed or wrote each UI page and diagram, and whether any AI tool was involved. The commits are the public snapshot commit and a documentation commit; the private development history before 2026-10-24 is not public, so it cannot be used as evidence here.
+- Whether the UI pages were reviewed by a human, beyond the general statement above that the owner reviewed AI-written code.
+
+What does not exist: no raster or vector image files (png, jpg, gif, svg, webp, ico), icons, fonts, audio, video, slide decks or design files are in the repository tree or in any commit reachable from any ref (checked 2026-10-27). The demo and submission video, any Arc Studio frontend and any architecture diagram prepared for the event do not exist in the repository yet.
+
+Assets generated during the event (after the tag `ethglobal-mumbai-2026-start` exists) can be appended to this inventory during the hackathon, with their own origin and AI-involvement entries. They will not be backfilled into the rows above.
 
 ## Baseline versus event assistance
 
