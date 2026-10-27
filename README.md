@@ -113,7 +113,15 @@ Not live / not finished — said plainly:
 
 ## Quick start (local, partial; these steps were compile-checked but not run end to end)
 
-Requirements: Go ≥ 1.25, Rust stable, ClickHouse, Valkey/Redis.
+Requirements: Go ≥ 1.25, Rust stable, ClickHouse, Valkey/Redis, Python 3 (use a virtual environment), and for the Rust crates `protoc` (tank-engine) plus `pkg-config` and OpenSSL development headers (tank-engine).
+
+Notes from a clean-clone run on Debian 13 (these steps are still partial; see the limits below):
+
+* The services read configuration from environment variables; `.env` is not loaded automatically, and it is not safe to `source` as-is (the placeholder values are not valid shell). Export the variables you need before starting a service.
+* `pip install` into the system Python fails on current Debian and Ubuntu (PEP 668); create a virtual environment first (`python3 -m venv .venv && . .venv/bin/activate`).
+* The two quick-start schema files cover the core `world_*` tables only. `rpc-gateway`, `api`, `sgip` and `mev-detector` also query tables that they do not create (for example `world_mev_activity`, `world_contracts`, `ingest_checkpoints`, `api_depeg_drift`); until those exist, the affected endpoints return errors. `schema/complete_schema.sql` is a raw dump and does not apply as-is.
+* The ExEx (`exex/`) did not build from a clean clone in this run; the observed failures are recorded in `exex/README.md`. The existing note that its build is not reproducible from this repository stands.
+* `tank-engine` builds with the prerequisites above, but at startup it requires a writable ingest-journal directory at `/var/lib/tank-engine/ingest-pending` (path fixed in `tank-engine/src/ingest_journal.rs`) and a live ExEx stream; without them it logs `INGEST_JOURNAL_UNAVAILABLE` and retries.
 
 ```bash
 cp .env.example .env            # fill in; never commit
