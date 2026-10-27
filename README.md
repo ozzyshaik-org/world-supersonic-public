@@ -33,7 +33,7 @@ This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2
 tag `baseline-pre-ethglobal-mumbai` plus every commit made before the start tag: documentation and CI, and also build, schema and lockfile work (all of it before `ethglobal-mumbai-2026-start`). Event work is everything after
 the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
-**Open-source rule.** ETHGlobal's rules for Continuity-track submissions say: "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules), read 2026-10-27.) Every new part added during the event, including the seller service, the web UI and the Agent Pass, IDKit and ENS code, stays in this public repository under its open-source license, and nothing event-built is kept private.
+**Open-source rule.** ETHGlobal's rules for Continuity-track submissions say: "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules), read 2026-10-27.) Every new part of the submitted extension and all event-built sponsor-feature code remains public under the repository's open-source license. Credentials, private data and sensitive live-infrastructure details are redacted. No submitted feature or required implementation is hidden or misrepresented.
 
 Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory of the existing assets is included; origin of those assets is not confirmed), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet) [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo), the [submission checklist](docs/hackathon/95-submission-checklist.md) (all boxes unchecked; nothing submitted) and the [AI artifact plan](docs/hackathon/96-ai-artifact-plan.md) (plan only; no prompts published yet).
 
@@ -48,7 +48,7 @@ Arc x402 and World ID IDKit are the core priorities. World ID Agent Pass is a se
 
 ### Partner prize targets (Continuity)
 
-Arc and World are the current prize targets. The two World rows each target only the Continuity-only listing named in that row; both are pending confirmation, and final prize terms must be rechecked against the official prize pages before submission. ENS is a conditional prize consideration. No selection, eligibility or winnings are claimed for any row. Each feature has a definition of done. All new work is committed to this public repository.
+Arc and World are the current prize targets. The two World rows each target only the Continuity-only listing named in that row; both are pending confirmation, and final prize terms must be rechecked against the official prize pages before submission. ENS is a conditional prize consideration. No selection, eligibility or winnings are claimed for any row. Each feature has a definition of done. All new work follows the open-source rule above.
 
 | Track | Feature (spec) | Done means |
 |---|---|---|

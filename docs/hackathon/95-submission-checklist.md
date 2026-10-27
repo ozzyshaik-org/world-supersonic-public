@@ -42,7 +42,7 @@ Arc page: "Every Arc prize requires using Arc Studio as the starting point. Plea
 - [ ] Arc Studio shown in the demo.
 - [ ] A working frontend and a working backend, shown together. [Spec 01](01-x402-arc-gateway.md) counts the Studio-built web UI as the frontend and the seller service as the backend; the CLI utility does not count as the frontend.
 - [ ] An architecture diagram (client, seller service, Circle Gateway, Go API, Arc), showing the seller submitting to Circle Gateway before it fulfills, and Gateway (not the seller) batching and settling on Arc.
-- [ ] Evidence for the Arc flow keeps acceptance, fulfillment, Gateway batching and final settlement as separate events ([EVIDENCE.md](../../EVIDENCE.md)); a successful response is not presented as onchain settlement.
+- [ ] Evidence for the Arc flow keeps acceptance, fulfillment, Gateway batching and final settlement as separate events ([EVIDENCE.md](../../EVIDENCE.md)); a successful response is not presented as onchain settlement. `received` is an intermediate state and is not batching evidence: batching is claimed only if `batched` or `confirmed` is observed through Gateway transfer reconciliation, and if only `completed` is observed, settlement is claimed and direct observation of batching is not.
 - [ ] A video demonstration and presentation covering the project's core functions and its use of Arc Studio and Circle's developer tools, supported by documentation.
 - [ ] A link to the GitHub repository.
 - [ ] Integration feedback on Arc Studio, Circle Gateway and Arc Testnet.
@@ -57,7 +57,7 @@ Arc page: "Every Arc prize requires using Arc Studio as the starting point. Plea
 ## Code, demo and AI
 - [ ] A live demo that works at the time of judging.
 - [ ] Public code: a public repository with an open-source license, and the README sections the specs require.
-- [ ] Continuity rule: ETHGlobal's rules say "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules)). Check that every new part (the seller service, the web UI, and the Agent Pass, IDKit and ENS code) is in the public repository under an open-source license, with nothing event-built kept private.
+- [ ] Continuity rule: ETHGlobal's rules say "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules)). Check that every new part (the seller service, the web UI, and the Agent Pass, IDKit and ENS code) is in the public repository under an open-source license, and that the submission states exactly: "Every new part of the submitted extension and all event-built sponsor-feature code remains public under the repository's open-source license. Credentials, private data and sensitive live-infrastructure details are redacted. No submitted feature or required implementation is hidden or misrepresented."
 - [ ] AI attribution: where and how AI tools were used, by part, file or asset. Details: "Clearly document in your submission where and how AI tools were used in the project." See [AI_USAGE.md](../../AI_USAGE.md).
 - [ ] Meaningful human contribution is explicit and true. Details: "Submissions that rely entirely on AI without meaningful contributions from team members may not be eligible for partner prizes or finalist consideration."
 - [ ] Spec-driven artifacts are in the repository, as in the [AI artifact plan](96-ai-artifact-plan.md). Details: "you must include all spec files, prompts, and planning artifacts in your submission repository."

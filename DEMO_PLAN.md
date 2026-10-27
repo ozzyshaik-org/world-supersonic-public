@@ -9,9 +9,9 @@ Narrative: Supersonic makes World Chain data accessible to both autonomous agent
 
 1. **Pre-existing index and measurement date.** Show the already-running World Chain index and state the date its figures were measured (the README holds the dated 2026-10-24 figures). This is baseline work.
 2. **Paid request.** A paid request returns HTTP 402, the client signs the Arc authorization, and the seller validates it, submits it to Circle Gateway (`settle()`), and only after Gateway accepts it returns a real answer with block context and a receipt. Show acceptance and fulfillment as two separate events.
-3. **Same-request retry.** Retry the same request and show that no additional charge occurs.
+3. **Same-request retry.** After the request has been fulfilled, retry the same request and show that the stored response is returned and no additional charge occurs.
 4. **Conflicting nonce reuse.** Reuse a nonce for a different request and show HTTP 409.
-5. **Gateway batching and settlement.** Show the transfer's real Gateway status by nonce: accepted, then batched, then `completed`, or an honest pending state if Gateway has not completed it. The seller does not create or submit batches, and a successful response is not onchain settlement.
+5. **Gateway batching and settlement.** Show the transfer's real Gateway status by nonce. `received` is shown as an honest intermediate state and is not batching evidence; batching is shown only if `batched` or `confirmed` is observed, and final settlement only if `completed` is observed. If only `completed` is observed, say that batching was not directly observed; if Gateway has not completed the transfer, show an honest pending state. The seller does not create or submit batches, and a successful response is not onchain settlement.
 6. **World ID IDKit.** Mint a key with a World ID proof, show the duplicate refusal, then show revocation evidence.
 7. **Agent Pass: workflow paused.** An agent proposes one paid or elevated request; show that the backend paused it and stored the exact operation, and that it has not executed.
 8. **Agent Pass: fresh authentication.** The human completes fresh World ID authentication (`max_age=0`) in the event web frontend; show the backend validating the result against the saved policy.
