@@ -25,7 +25,7 @@ Supersonic is an integrated stack for working with World Chain at the execution 
 * **Investigation graphs (SGIP).** `sgip` renders transaction call-trace graphs and contract and wallet views from the indexed data, and renders a contract's control-flow graph (CFG) when one is stored for it. The decompiler that produces stored CFGs is not part of this repository.
 * **One workflow.** Extraction (ExEx) → indexed datasets (ClickHouse) → APIs (REST/WebSocket) → investigation UI (SGIP).
 
-Dated scale measurements and the known limits (including that the ExEx build is not yet reproducible from this repository) are under [What is live and what is not](#what-is-live-and-what-is-not-known-limits).
+Dated scale measurements and the known limits (including that the ExEx has only been compile-verified against unmodified upstream reth, not run end to end, and may differ from the production build) are under [What is live and what is not](#what-is-live-and-what-is-not-known-limits).
 
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 
@@ -77,7 +77,7 @@ flowchart LR
 
 | Directory | Language | Port | What it does | State on 2026-10-24 |
 |---|---|---|---|---|
-| `exex/` | Rust (reth ExEx) | unix socket | Streams committed blocks (header, txs, traces, logs) out of `op-reth` | Running in production. **Build not reproducible from this repo** (private reth checkout, see `exex/README.md`) |
+| `exex/` | Rust (reth ExEx) | unix socket | Streams committed blocks (header, txs, traces, logs) out of `op-reth` | Running in production. Public build compile-verified with `--locked` against unmodified upstream reth (not run end to end; production uses a locally modified reth checkout that is not published, see `exex/README.md`) |
 | `tank-engine/` | Rust | – | Consumes the ExEx stream, writes ClickHouse, backfills and heals gaps, matches logs into derived `api_*` tables | Running in production (`cargo check` passes) |
 | `cmd/rpc-gateway/` | Go | 8081 | REST API `/v1/*`, Valkey cache + singleflight, API-key tiers and rate limits, Prometheus `/metrics`, Swagger `/docs` | Running; `go build`/`go vet` pass |
 | `cmd/api/` + `web/` | Go | 8090 | WebSocket `/ws` with API-key and rate-limit checks (see known limits) that polls recent DEX/DeFi/NFT rows and pushes them to the edge; serves a static page | Running; `go build`/`go vet` pass |
@@ -120,7 +120,7 @@ Notes from a clean-clone run on Debian 13 (these steps are still partial; see th
 * The services read configuration from environment variables; `.env` is not loaded automatically, and it is not safe to `source` as-is (the placeholder values are not valid shell). Export the variables you need before starting a service.
 * `pip install` into the system Python fails on current Debian and Ubuntu (PEP 668); create a virtual environment first (`python3 -m venv .venv && . .venv/bin/activate`).
 * The two quick-start schema files cover the core `world_*` tables only. `rpc-gateway`, `api`, `sgip` and `mev-detector` also query tables that they do not create (for example `world_mev_activity`, `world_contracts`, `ingest_checkpoints`, `api_depeg_drift`); until those exist, the affected endpoints return errors. `schema/complete_schema.sql` is a raw dump and does not apply as-is.
-* The ExEx (`exex/`) did not build from a clean clone in this run; the observed failures are recorded in `exex/README.md`. The existing note that its build is not reproducible from this repository stands.
+* The ExEx (`exex/`) did not build from a clean clone without a lockfile in the earlier run; with the committed `exex/Cargo.lock`, `cargo build --release --locked` passes on a fresh clone (compile check only: runtime behaviour was not tested, and production uses a locally modified reth checkout that is not published). Details in `exex/README.md`.
 * `tank-engine` builds with the prerequisites above, but at startup it requires a writable ingest-journal directory at `/var/lib/tank-engine/ingest-pending` (path fixed in `tank-engine/src/ingest_journal.rs`) and a live ExEx stream; without them it logs `INGEST_JOURNAL_UNAVAILABLE` and retries.
 
 ```bash
