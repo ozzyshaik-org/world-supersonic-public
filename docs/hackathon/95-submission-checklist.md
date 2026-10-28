@@ -61,6 +61,9 @@ Arc page: "Every Arc prize requires using Arc Studio as the starting point. Plea
 - [ ] AI attribution: where and how AI tools were used, by part, file or asset. Details: "Clearly document in your submission where and how AI tools were used in the project." See [AI_USAGE.md](../../AI_USAGE.md).
 - [ ] Meaningful human contribution is explicit and true. Details: "Submissions that rely entirely on AI without meaningful contributions from team members may not be eligible for partner prizes or finalist consideration."
 - [ ] Spec-driven artifacts are in the repository, as in the [AI artifact plan](96-ai-artifact-plan.md). Details: "you must include all spec files, prompts, and planning artifacts in your submission repository."
+- [ ] Investigation story ([spec 05](05-investigation-evidence.md)): one paid `/v1/mev/analytics` result links to the SGIP graph for the same `tx_hash`, with block context and receipt visible. Candidate/limitation wording remains intact; no live hash or finding is invented.
+- [ ] Evaluator reproduction ([spec 05](05-investigation-evidence.md)): the public fixture has raw/derived rows, expected assertions and a provenance/limitations manifest; one clean-checkout command checks the REST/SGIP contract in isolation; a negative control exits non-zero; no node, production access or partner result is required or fabricated.
+- [ ] README and submission give direct pointers to the event implementation, verification command, Arc Studio project, live demo, integration debriefs and evidence rows. Live chain data, public fixture, real partner runs and pending states are labelled separately.
 - [ ] No secret, key, token or private data appears in the repository, the video, the screenshots or the written submission.
 
 ## Demo video

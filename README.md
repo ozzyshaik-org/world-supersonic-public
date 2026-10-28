@@ -46,6 +46,8 @@ Planned during the hackathon (committed scope—specifications only, not yet imp
 
 Arc x402 and World ID IDKit are the core priorities. World ID Agent Pass is a separate official integration from IDKit and is never conflated with it; they are distinct targets with separate evidence. Two uncommitted stretch options (not part of the committed scope, and attempted only after items 1 to 4 are complete and evidenced) are listed in [docs/hackathon/90-stretch-options.md](docs/hackathon/90-stretch-options.md).
 
+The event presentation is planned around one execution-level investigation—paid derived finding → same-transaction SGIP graph → response and receipt—rather than a sequence of sponsor checks. A labelled public fixture and one-command REST/SGIP verification are cross-cutting event work, not a fifth sponsor integration or an existing result ([specification](docs/hackathon/05-investigation-evidence.md)).
+
 ### Partner prize targets (Continuity)
 
 Arc and World are the current prize targets. The two World rows each target only the Continuity-only listing named in that row; both are pending confirmation, and final prize terms must be rechecked against the official prize pages before submission. ENS is a conditional prize consideration. No selection, eligibility or winnings are claimed for any row. Each feature has a definition of done. All new work follows the open-source rule above.
