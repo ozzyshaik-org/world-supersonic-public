@@ -27,37 +27,26 @@ Supersonic is an integrated stack for working with World Chain at the execution 
 
 Dated scale measurements and the known limits (including that the ExEx has only been compile-verified against unmodified upstream reth, not run end to end, and may differ from the production build) are under [What is live and what is not](#what-is-live-and-what-is-not-known-limits).
 
+## Product direction
+
+Supersonic is being extended into one complete investigation workflow: an agent pays for a derived execution-level lead, follows the same transaction hash into SGIP, and receives a replayable response with its evidence context. The ambition is to make Supersonic the most direct path from World Chain activity to inspectable evidence.
+
+Planned product capabilities (specifications only, not yet implemented):
+
+1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc ([specification](docs/hackathon/01-x402-arc-gateway.md)).
+2. **World ID gating with IDKit** for one active self-service free-tier key per action-scoped nullifier ([specification](docs/hackathon/02-world-id-gating.md)).
+3. **World ID Agent Pass**, separate from IDKit, for fresh human approval of one paid or elevated data request. Approval never replaces payment ([specification](docs/hackathon/04-agent-pass.md)).
+4. **ENS name inputs** for address parameters, resolved before payment and pinned through fulfillment ([specification](docs/hackathon/03-ens-integration.md)).
+
+Each capability must strengthen the same request → authorize → investigate → replay workflow. The product story is not a sequence of disconnected integrations. A labelled public fixture and one-command REST/SGIP verification are planned to make the investigation reproducible without production access ([specification](docs/hackathon/05-investigation-evidence.md)); neither is an existing result.
+
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 
-This project is the base for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated
-tag `baseline-pre-ethglobal-mumbai` plus every commit made before the start tag: documentation and CI, and also build, schema and lockfile work (all of it before `ethglobal-mumbai-2026-start`). Event work is everything after
-the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
+This product direction is the planned extension for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated tag `baseline-pre-ethglobal-mumbai` plus every commit made before the start tag: documentation and CI, and also build, schema and lockfile work. Event work is everything after the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
-**Open-source rule.** ETHGlobal's rules for Continuity-track submissions say: "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules), read 2026-10-27.) Every new part of the submitted extension and all event-built sponsor-feature code remains public under the repository's open-source license. Credentials, private data and sensitive live-infrastructure details are redacted. No submitted feature or required implementation is hidden or misrepresented.
+**Open-source rule.** ETHGlobal's rules for Continuity-track submissions say: "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules), read 2026-10-27.) Every new part of the submitted extension remains public under the repository's open-source license. Credentials, private data and sensitive live-infrastructure details are redacted. No submitted feature or required implementation is hidden or misrepresented.
 
-Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory of the existing assets is included; origin of those assets is not confirmed), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet) [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo), the [submission checklist](docs/hackathon/95-submission-checklist.md) (all boxes unchecked; nothing submitted) and the [AI artifact plan](docs/hackathon/96-ai-artifact-plan.md) (plan only; no prompts published yet).
-
-Planned during the hackathon (committed scope—specifications only, not yet implemented):
-
-1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc.
-2. **World ID gating with IDKit**: one active self-service free-tier key per action-scoped nullifier.
-3. **World ID Agent Pass: human checkpoint for one paid or elevated data request**, third priority: an agent proposes the request, the backend pauses it, and a human completes fresh Agent Pass authentication and then separately approves or denies the exact displayed action in our application; Agent Pass approval never replaces Arc/x402 payment. Attempted after the Arc and IDKit flows work end to end, with their demos, tests and evidence complete ([spec](docs/hackathon/04-agent-pass.md)).
-4. **ENS name inputs for address parameters**, fourth priority: attempted after the Agent Pass flow works end to end, with its demo, tests and evidence complete ([spec](docs/hackathon/03-ens-integration.md)).
-
-Arc x402 and World ID IDKit are the core priorities. World ID Agent Pass is a separate official integration from IDKit and is never conflated with it; they are distinct targets with separate evidence. Two uncommitted stretch options (not part of the committed scope, and attempted only after items 1 to 4 are complete and evidenced) are listed in [docs/hackathon/90-stretch-options.md](docs/hackathon/90-stretch-options.md).
-
-The event presentation is planned around one execution-level investigation—paid derived finding → same-transaction SGIP graph → response and receipt—rather than a sequence of sponsor checks. A labelled public fixture and one-command REST/SGIP verification are cross-cutting event work, not a fifth sponsor integration or an existing result ([specification](docs/hackathon/05-investigation-evidence.md)).
-
-### Partner prize targets (Continuity)
-
-Arc and World are the current prize targets. The two World rows each target only the Continuity-only listing named in that row; both are pending confirmation, and final prize terms must be rechecked against the official prize pages before submission. ENS is a conditional prize consideration. No selection, eligibility or winnings are claimed for any row. Each feature has a definition of done. All new work follows the open-source rule above.
-
-| Track | Feature (spec) | Done means |
-|---|---|---|
-| Arc: Bring Your Project to Arc | [x402](docs/hackathon/01-x402-arc-gateway.md) pay-per-request access, paid in USDC through Circle Gateway nanopayments, started from Arc Studio | A request to a paid `/v1` route returns HTTP 402; the client retries with a signed payment authorization; the seller validates it, submits it to Circle Gateway and, once Gateway accepts it, fulfills the request; a retry of the same request is never charged twice and nonce reuse for a different request is rejected; paid routes cannot be bypassed through direct access. Circle Gateway, not the seller, later batches the accepted transfers and settles them onchain on Arc, and the seller only observes that. Per-request onchain settlement is not claimed. Arc Studio URL, Studio shown in the demo, an Arc Studio-built web frontend and the seller backend, architecture diagram, integration feedback, demo URL and open-source code. |
-| World: [Cont] Best IDKit Use Case (Continuity-only listing; target pending confirmation) | [One active self-service free-tier key per action-scoped nullifier](docs/hackathon/02-world-id-gating.md) with World ID | A self-service key is minted only after a World ID proof, a second self-service key for the same action-scoped nullifier is refused, lost-key recovery with a fresh proof replaces the key without a new nullifier, and a revoked key is refused on `/v1` and `/ws`. Operator-minted keys are a separate documented exception and are not part of the human-flow demo. |
-| World: Agent Pass (Continuity-only listing; target pending confirmation) | [Human checkpoint for one paid or elevated data request](docs/hackathon/04-agent-pass.md) with World ID Agent Pass | Separate from the IDKit row. The ETHGlobal World prizes page lists "World ID Agent Pass" with the notice "This prize is only available to Continuity Track participants"; it does not use the label "Continuity Agent Pass", and the target is pending confirmation against the final prize terms (a separate, general Agent Pass listing also exists and is not claimed here). Done means, per the spec: an agent request is paused with the exact operation stored; fresh authentication is completed and validated by the backend; the human separately approves the displayed action in our application; the approved operation executes at most once and never replaces Arc/x402 payment; denied, cancelled, expired, mismatched, changed-request and replayed attempts leave the action unexecuted; the integration debrief is written from real experience. |
-| ENS (conditional prize consideration) | [ENS name inputs for `/v1/balance` and `/v1/transactions`](docs/hackathon/03-ens-integration.md) | Fourth priority; no prize claim. Eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way; none is claimed for ordinary `.eth` resolution alone. Done criteria are in the spec. |
+Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory of the existing assets is included; origin of those assets is not confirmed), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet), [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo), the [submission checklist](docs/hackathon/95-submission-checklist.md) (all boxes unchecked; nothing submitted) and the [AI artifact plan](docs/hackathon/96-ai-artifact-plan.md) (plan only; no prompts published yet). Detailed track constraints, integration criteria and evidence requirements remain in those documents rather than interrupting the product overview above.
 
 ## Architecture
 
@@ -87,7 +76,7 @@ flowchart LR
 | `tank-engine/` | Rust | – | Consumes the ExEx stream, writes ClickHouse, backfills and heals gaps, matches logs into derived `api_*` tables | Running in production (`cargo check` passes) |
 | `cmd/rpc-gateway/` | Go | 8081 | REST API `/v1/*`, Valkey cache + singleflight, API-key tiers and rate limits, Prometheus `/metrics`, Swagger `/docs` | Running; `go build`/`go vet` pass |
 | `cmd/api/` + `web/` | Go | 8090 | WebSocket `/ws` with API-key and rate-limit checks (see known limits) that polls recent DEX/DeFi/NFT rows and pushes them to the edge; serves a static page | Running; `go build`/`go vet` pass |
-| `edge/` | Rust (axum) | 8091 | WebSocket fan-out of messages received from supersonic-api over a unix socket; its `/ws` is unauthenticated (see known limits) | Running (`cargo check` passes) |
+| `edge/` | Rust (axum) | 8091 | Rust WebSocket fan-out of messages received from supersonic-api over a unix socket; its `/ws` is unauthenticated (see known limits) | Running (`cargo check` passes) |
 | `sgip/` | Python (FastAPI) | 8095 | Contract / transaction / wallet explorer and control-flow-graph visualizer over ClickHouse | Running |
 | `mev-detector/` | Python | – | Scans indexed blocks for MEV patterns into `world_mev_activity`; optional Telegram/Discord alerts | Running |
 | `schema/` | SQL | – | ClickHouse DDL (tables, materialized views) | Reference dumps |
