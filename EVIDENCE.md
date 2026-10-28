@@ -11,10 +11,11 @@ Status values:
 - `NOT_YET_RUN`: the claim has a defined procedure, and the procedure has not been run.
 - `PLANNED`: the claim is intended but its procedure is not yet defined in detail.
 
-Row IDs: `ARC-nn` (Arc), `IDK-nn` (World ID IDKit), `AP-nn` (Agent Pass), `ENS-nn` (ENS) and `X-nn` (cross-feature). The "Done means" column names the spec item each row traces to, written `<spec>-DM<n>` (for example `01-DM5` is item 5 of spec 01), and the last section lists every item with its rows. Rows in the single-feature tables may cover only part of an item; the procedure column says what is run.
+Row IDs: `ARC-nn` (Arc), `IDK-nn` (World ID IDKit), `AP-nn` (Agent Pass), `ENS-nn` (ENS), `X-nn` (cross-feature) and `INV-nn` (investigation/reproducibility). The "Done means" column names the spec item each row traces to, written `<spec>-DM<n>` (for example `01-DM5` is item 5 of spec 01), and the last section lists every item with its rows. Rows in the single-feature tables may cover only part of an item; the procedure column says what is run.
 
 Specifications: [Arc x402](docs/hackathon/01-x402-arc-gateway.md), [World ID IDKit](docs/hackathon/02-world-id-gating.md),
-[World ID Agent Pass](docs/hackathon/04-agent-pass.md), [ENS](docs/hackathon/03-ens-integration.md). Feature work is event work and none of it is implemented yet.
+[World ID Agent Pass](docs/hackathon/04-agent-pass.md), [ENS](docs/hackathon/03-ens-integration.md) and
+[investigation/evidence](docs/hackathon/05-investigation-evidence.md). Feature and supporting event work is not implemented yet.
 
 ## Arc: x402 with Circle Gateway (priority 1, core)
 
@@ -118,6 +119,18 @@ These rows trace the composition contract in [spec 01](docs/hackathon/01-x402-ar
 | X-13 | The approved payment snapshot is shown with an integer-derived amount and is immutable | Agent Pass: approved snapshot | 04-DM22, 04-DM16 | PLANNED | | Render the approval view for operations with several amounts; attempt to update the snapshot fields | Amount derived by integer arithmetic from base units (no floats); fields written once at proposal and never updated | | |  |
 | X-14 | An attempted uncertain payment keeps the binding `reserved` and the operation `executing` or `uncertain`; a late matching transfer is adopted and the operation is never voided | Arc with Agent Pass: late transfer after empty lookups | 04-DM21, 01-DM6 | PLANNED | | Reserve and submit a paid operation, make `settle()` time out, run empty lookups past the validity window, then let a lookup return the matching transfer. Separately, let a reservation whose authorization was never submitted pass its window | Before the transfer is found: binding `reserved`, operation `executing` (or `uncertain` once flagged), never binding `void` and never operation `rejected` (`payment_unsubmitted_expired`), no second approval or binding. After: ledger `accepted`, the operation continues and ends `executed` once. Never submitted: binding `void`, operation `rejected` (`payment_unsubmitted_expired`) | | | Ledger-level counterpart is ARC-23 |
 
+## Investigation and evaluator reproduction (cross-cutting)
+
+These rows support presentation and reproducibility; they are not a fifth sponsor integration and do not replace Arc,
+World or Continuity evidence. No live transaction, fixture, command or result exists merely because a row is planned.
+
+| ID | Claim | Feature | Done means | Status | Commit | Command/procedure | Expected | Actual | Proof | Limitations |
+|---|---|---|---|---|---|---|---|---|---|---|
+| INV-01 | One paid derived finding leads to the SGIP graph for the same transaction | Live investigation spine | 05-DM1 | PLANNED | | After a real accepted and fulfilled `/v1/mev/analytics` request, take a returned `tx_hash`, open `/api/tx/{tx_hash}` for that exact hash, and inspect the response, block context, receipt, graph and candidate wording | The paid row and SGIP graph refer to one transaction; the receipt and block context are visible; acceptance, fulfillment and any later Gateway status remain separate | | | The row remains a detector candidate/finding, not proof of intent, guaranteed classification or realized profit. A real transaction is selected only after inspection |
+| INV-02 | The public fixture contains honest provenance and the raw/derived records needed for the investigation | Evaluator fixture | 05-DM2 | PLANNED | | Inspect the fixture, manifest and generation procedure; scan for credentials, private data and production connection strings | Raw transaction/canonical traces and the matching derived MEV row, required deterministic labels/signatures, expected assertions and synthetic/sanitized provenance are present; limitations are explicit | | | Fixture data proves only service wiring and API/SGIP contracts, not live ingestion, production parity, detector precision or partner flows |
+| INV-03 | One command reproduces the REST/SGIP contract from a clean checkout without production or a node | One-command verification | 05-DM3 | PLANNED | | Run the documented command in a clean environment; inspect its isolated configuration, cross-hash assertion, cleanup and exit status | It applies the quick-start schema, loads only the fixture, checks `/v1/mev/analytics` and the SGIP graph for the same `tx_hash`, cleans up only its own resources and exits zero only when assertions pass | | | The command does not call `settle()`, fabricate Gateway/World results or pass any payment/identity evidence row |
+| INV-04 | A negative control fails, and live, fixture, partner and pending states are not conflated | Negative control and labels | 05-DM4 | PLANNED | | Remove or alter a required trace/hash relationship and rerun the command; review the demo, README and evidence labels | Verification exits non-zero and identifies the failed assertion; every shown result is labelled live chain data, public fixture, real partner run or pending/unavailable; no scripted success substitutes for an unavailable result | | | Scripted navigation may control timing only; it may not alter responses, identity results, payment state or verdicts |
+
 ## Traceability to "Done means"
 
 Each spec's "Done means" item is listed with the evidence rows that cover it. A "Done means" item with no row would be a gap; none is listed as uncovered. Listing a row here is not a result: every row is `NOT_YET_RUN` or `PLANNED`.
@@ -179,3 +192,7 @@ Each spec's "Done means" item is listed with the evidence rows that cover it. A 
 | 04 | 04-DM20 | AP-17 |
 | 04 | 04-DM21 | X-11, X-12, X-14 |
 | 04 | 04-DM22 | AP-04, X-13 |
+| 05 | 05-DM1 | INV-01 |
+| 05 | 05-DM2 | INV-02 |
+| 05 | 05-DM3 | INV-03 |
+| 05 | 05-DM4 | INV-04 |
