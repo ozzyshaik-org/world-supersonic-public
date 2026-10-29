@@ -9,10 +9,18 @@ This public repository and its baseline tag were created on **24 Oct 2026**, bef
 as a sanitized snapshot of the project. The private development history, which goes back months, is not
 public. The first commit here is the snapshot, not the start of the project.
 
+## Layers of history
+
+| Layer | Reference | What it contains | Status |
+|---|---|---|---|
+| Private development history | not public | Months of development of the full stack | Pre-existing |
+| Baseline snapshot | annotated tag `baseline-pre-ethglobal-mumbai` (commit `241af1f`, 24 Oct 2026) | Sanitized public snapshot of the full stack | Pre-existing |
+| Pre-kickoff documentation commits | the commits listed below (24-25 Oct 2026), plus any other commit made before the start tag | The listed commits are documentation and CI only; later pre-start commits are recorded here as they happen | Pre-existing |
+| Event work | commits after the annotated tag `ethglobal-mumbai-2026-start` | The committed features below | Hackathon work |
+
 ## Baseline (before the hackathon)
 
-The annotated tag `baseline-pre-ethglobal-mumbai` marks the repository exactly as it stood before any
-hackathon work. Everything reachable from that tag is pre-existing work, described in the README:
+Everything reachable from the tag `baseline-pre-ethglobal-mumbai` is pre-existing work, described in the README:
 
 - Reth ExEx that streams blocks, transactions, traces and logs over gRPC
 - Rust `tank-engine` ingest into ClickHouse, with a Valkey cache
@@ -20,18 +28,69 @@ hackathon work. Everything reachable from that tag is pre-existing work, describ
 - Python `sgip` explorer and `mev-detector`
 - Ingestion into the production database since 2026-03-15, with earlier chain history backfilled (see README)
 
-## Hackathon work (starts 5 Nov 2026)
+## Pre-kickoff commits after the baseline tag (pre-existing, not hackathon work)
 
-Every commit after the baseline tag is hackathon work. The three features, each with a definition of done:
+The commits below were made after the baseline tag and before the hackathon kickoff (seven as of 25 Oct 2026; any later
+commit made before the start tag, including an urgent security fix, is also pre-existing). They are pre-existing work.
+The seven listed commits touch Markdown files and one CI workflow only; no file under `cmd/`, `edge/`, `exex/`, `tank-engine/`,
+`sgip/`, `mev-detector/`, `schema/`, `proto/` or `web/` changed.
 
-1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc.
-2. **World ID gating**: one API key per verified human.
-3. **ENS-native inputs**: ENS names accepted wherever an address is.
+| Commit | Date (IST) | Author | Subject |
+|---|---|---|---|
+| `316bc49` | 2026-10-24 22:42 | ozzyshaik | Add CONTINUITY.md: baseline vs hackathon work |
+| `22c6c8f` | 2026-10-24 23:08 | ozzyshaik | Docs: badges, hackathon section, known-limits heading, SECURITY.md, issue template |
+| `477a535` | 2026-10-24 23:33 | ozzyshaik | README: partner prize targets with definitions of done |
+| `88a72b6` | 2026-10-24 23:44 | ozzyshaik | Docs: hackathon feature specs, hackathon log template, CONTRIBUTING, CODE_OF_CONDUCT |
+| `6895c50` | 2026-10-25 00:07 | nasiparveen006 | Update README.md |
+| `c22152a` | 2026-10-25 10:08 | ozzyshaik | README: link World ID and ENS feature specs |
+| `5419782` | 2026-10-25 10:39 | ozzyshaik | ci: build and vet Go services |
 
-To see only the hackathon changes:
+Every commit that will be reachable from the tag `ethglobal-mumbai-2026-start` (not yet created; see below) is pre-existing. The feature specs in
+`docs/hackathon/` are part of this pre-kickoff documentation. They are committed scope—specifications only, not yet implemented. They describe what will be
+built; the implementation is event work.
+
+Once the start tag exists, list them with:
 
 ```bash
-git log baseline-pre-ethglobal-mumbai..HEAD
+git log --oneline baseline-pre-ethglobal-mumbai..ethglobal-mumbai-2026-start
+```
+
+## Hackathon work (official kickoff on 5 Nov 2026)
+
+Immediately before event implementation begins, the then-current `main` is tagged with the annotated tag
+`ethglobal-mumbai-2026-start`, the tag is pushed, and its commit hash is recorded in `HACKATHON_LOG.md`. The tag does not
+exist yet. Event work is everything after that tag. History is never rewritten and the tags are never moved.
+
+The committed scope—specifications only, not yet implemented—is four features, each with a definition of done, in scope order:
+
+1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc (core priority).
+2. **World ID gating with IDKit**: one active self-service free-tier key per action-scoped nullifier (core priority).
+3. **World ID Agent Pass: human checkpoint for one paid or elevated data request** (third priority): attempted after the Arc and IDKit flows are complete end to end, with their demos, tests and evidence. See [`docs/hackathon/04-agent-pass.md`](docs/hackathon/04-agent-pass.md). Agent Pass approval never replaces Arc/x402 payment.
+4. **ENS name inputs for `/v1/balance` and `/v1/transactions`** (fourth priority): attempted after the Arc, IDKit and Agent Pass flows are complete and evidenced. See [`docs/hackathon/03-ens-integration.md`](docs/hackathon/03-ens-integration.md).
+
+Arkiv and CROPS are uncommitted stretch options, documented in `docs/hackathon/90-stretch-options.md`. They are not part of the committed scope. Only one may be attempted, and only after all four committed flows are complete and evidenced. Uniswap is watchlist-only and is not planned work.
+
+Partner prize targets:
+
+| Track | Priority | Eligibility |
+|---|---|---|
+| Arc: Bring Your Project to Arc | 1, core | Defined by the done criteria in `docs/hackathon/01-x402-arc-gateway.md` |
+| World: [Cont] Best IDKit Use Case | 2, core | Continuity-only listing, target pending confirmation; defined by the done criteria in `docs/hackathon/02-world-id-gating.md` |
+| World ID Agent Pass | 3, targeted | Continuity-only listing, target pending confirmation; the separate general listing is not claimed; defined by the done criteria in `docs/hackathon/04-agent-pass.md` |
+| ENS | 4, conditional | No prize claim. Ordinary `.eth` resolution alone supports no ENSv2 prize claim; eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way (see `docs/hackathon/03-ens-integration.md`) |
+
+No selection, eligibility or winnings are claimed for any row. Final prize terms must be rechecked.
+
+To see only the event changes:
+
+```bash
+git log ethglobal-mumbai-2026-start..HEAD
+git diff ethglobal-mumbai-2026-start..HEAD
+```
+
+To see everything added since the baseline snapshot (pre-kickoff documentation plus event work):
+
+```bash
 git diff baseline-pre-ethglobal-mumbai..HEAD
 ```
 

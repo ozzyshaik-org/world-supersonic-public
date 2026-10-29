@@ -19,10 +19,10 @@ eyre         = "0.6"
 serde_json   = "1"
 
 # --- reth pin ---------------------------------------------------------------
-# Production builds against a local checkout of reth at commit 27a8c0f (upstream,
-# 2025-11-18). That checkout is a locally modified copy (its directory name refers
-# to a "cifs-stall" workaround); the local modifications are NOT included here, and
-# this plain git pin of upstream has NOT been build-verified. See exex/README.md.
+# Pinned to upstream reth at commit 27a8c0f (v1.9.3, 2025-11-18). Production builds against a
+# locally modified checkout of the same commit; those modifications are NOT included here.
+# `cargo build --release --locked` against this plain upstream pin, with the committed Cargo.lock,
+# was verified to compile (compile check only). See exex/README.md.
 reth                     = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
 reth-exex                = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
 reth-exex-types          = { git = "https://github.com/paradigmxyz/reth", rev = "27a8c0f5a6dfb27dea84c5751776ecabdd069646" }
