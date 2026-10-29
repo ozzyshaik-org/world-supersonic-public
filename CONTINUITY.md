@@ -15,7 +15,7 @@ public. The first commit here is the snapshot, not the start of the project.
 |---|---|---|---|
 | Private development history | not public | Months of development of the full stack | Pre-existing |
 | Baseline snapshot | annotated tag `baseline-pre-ethglobal-mumbai` (commit `241af1f`, 24 Oct 2026) | Sanitized public snapshot of the full stack | Pre-existing |
-| Pre-kickoff documentation commits | the commits listed below (24-25 Oct 2026), plus any other commit made before the start tag | The listed commits are documentation and CI only; later pre-start commits are recorded here as they happen | Pre-existing |
+| Pre-kickoff commits | the commits listed below (24-25 Oct 2026), plus any other commit made before the start tag | The listed commits are documentation and CI only; later pre-start commits can include product/presentation work such as `website/` and are recorded here as they happen | Pre-existing |
 | Event work | commits after the annotated tag `ethglobal-mumbai-2026-start` | The committed features below | Hackathon work |
 
 ## Baseline (before the hackathon)
@@ -49,6 +49,8 @@ Every commit that will be reachable from the tag `ethglobal-mumbai-2026-start` (
 `docs/hackathon/` are part of this pre-kickoff documentation. They are committed scope—specifications only, not yet implemented. They describe what will be
 built; the implementation is event work.
 
+`website/` and its documentation are pre-kickoff product/presentation work when committed before the start tag. This frontend-only product site is not the planned Arc Studio event frontend, does not implement the feature specifications, and supplies no partner-integration evidence. Any event frontend or integration implemented after the start tag remains event work and must be committed separately and incrementally.
+
 Once the start tag exists, list them with:
 
 ```bash
@@ -65,7 +67,7 @@ The committed scope—specifications only, not yet implemented—is four feature
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc (core priority).
 2. **World ID gating with IDKit**: one active self-service free-tier key per action-scoped nullifier (core priority).
-3. **World ID Agent Pass: human checkpoint for one paid or elevated data request** (third priority): attempted after the Arc and IDKit flows are complete end to end, with their demos, tests and evidence. See [`docs/hackathon/04-agent-pass.md`](docs/hackathon/04-agent-pass.md). Agent Pass approval never replaces Arc/x402 payment.
+3. **World ID Agent Pass: human checkpoint for one paid or elevated agent data request** (third priority): attempted after the Arc and IDKit flows are complete end to end, with their demos, tests and evidence. See [`docs/hackathon/04-agent-pass.md`](docs/hackathon/04-agent-pass.md). Agent Pass approval never replaces Arc/x402 payment.
 4. **ENS name inputs for `/v1/balance` and `/v1/transactions`** (fourth priority): attempted after the Arc, IDKit and Agent Pass flows are complete and evidenced. See [`docs/hackathon/03-ens-integration.md`](docs/hackathon/03-ens-integration.md).
 
 Arkiv and CROPS are uncommitted stretch options, documented in `docs/hackathon/90-stretch-options.md`. They are not part of the committed scope. Only one may be attempted, and only after all four committed flows are complete and evidenced. Uniswap is watchlist-only and is not planned work.
@@ -77,7 +79,7 @@ Partner prize targets:
 | Arc: Bring Your Project to Arc | 1, core | Defined by the done criteria in `docs/hackathon/01-x402-arc-gateway.md` |
 | World: [Cont] Best IDKit Use Case | 2, core | Continuity-only listing, target pending confirmation; defined by the done criteria in `docs/hackathon/02-world-id-gating.md` |
 | World ID Agent Pass | 3, targeted | Continuity-only listing, target pending confirmation; the separate general listing is not claimed; defined by the done criteria in `docs/hackathon/04-agent-pass.md` |
-| ENS | 4, conditional | No prize claim. Ordinary `.eth` resolution alone supports no ENSv2 prize claim; eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way (see `docs/hackathon/03-ens-integration.md`) |
+| ENS | 4, conditional | No prize claim. Ordinary `.eth` resolution alone supports no ENSv2 prize claim; eligibility only if ENSv2 on Ethereum mainnet is used in a functional, central way (see [`docs/hackathon/03-ens-integration.md`](docs/hackathon/03-ens-integration.md)) |
 
 No selection, eligibility or winnings are claimed for any row. Final prize terms must be rechecked.
 

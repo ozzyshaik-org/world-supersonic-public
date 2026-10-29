@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a1210">
+  <meta name="description" content="Supersonic turns World Chain execution into queryable, inspectable evidence—from reth ingestion to derived findings and transaction investigation graphs.">
+  <title>Supersonic — World Chain execution intelligence</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230a1210'/%3E%3Cpath d='M14 42L30 16h20L34 42H14zm8 8l12-18h16L38 50H22z' fill='%23b7ef59'/%3E%3C/svg%3E">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="site-grain" aria-hidden="true"></div>
+
+  <header class="site-header" id="site-header">
+    <div class="header-inner page-shell">
+      <a class="brand" href="#top" aria-label="Supersonic home">
+        <svg class="brand-mark" viewBox="0 0 42 42" aria-hidden="true"><path d="M5 27 16 8h20L25 27H5Zm8 8 8-13h16L29 35H13Z" fill="currentColor"/></svg>
+        <span class="brand-word">SUPERSONIC</span>
+        <span class="brand-chain">WORLD CHAIN / 480</span>
+      </a>
+      <nav class="desktop-nav" aria-label="Primary navigation">
+        <a href="#story">Story</a>
+        <a href="#product">Workspace</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#proof">Proof</a>
+        <a href="#roadmap">Roadmap</a>
+      </nav>
+      <div class="header-actions">
+        <a class="header-source desktop-only" href="https://github.com/ozzyshaik-org/world-supersonic-public" target="_blank" rel="noreferrer">Source <i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+        <button class="button button-small pitch-trigger" type="button" data-open-pitch><i data-lucide="play" aria-hidden="true"></i><span>4-minute pitch</span></button>
+        <button class="icon-button menu-toggle" id="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-menu"><i data-lucide="menu" aria-hidden="true"></i></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="mobile-drawer" id="mobile-menu" aria-label="Mobile navigation" hidden>
+    <div class="drawer-head"><span class="mono-label">NAVIGATION</span><button class="icon-button" id="menu-close" type="button" aria-label="Close navigation"><i data-lucide="x" aria-hidden="true"></i></button></div>
+    <nav>
+      <a href="#story">Story <i data-lucide="arrow-down-right" aria-hidden="true"></i></a>
+      <a href="#product">Workspace <i data-lucide="arrow-down-right" aria-hidden="true"></i></a>
+      <a href="#architecture">Architecture <i data-lucide="arrow-down-right" aria-hidden="true"></i></a>
+      <a href="#proof">Proof <i data-lucide="arrow-down-right" aria-hidden="true"></i></a>
+      <a href="#roadmap">Roadmap <i data-lucide="arrow-down-right" aria-hidden="true"></i></a>
+      <a href="https://github.com/ozzyshaik-org/world-supersonic-public" target="_blank" rel="noreferrer">Open-source core <i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+    </nav>
+    <p>Execution-level indexing and investigation infrastructure for World Chain.</p>
+  </aside>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="hero-layout page-shell">
+        <div class="hero-copy">
+          <div class="status-line"><span class="status-dot"></span>WORLD CHAIN <span class="status-separator">/</span> OPERATOR-CONTROLLED EXECUTION DATA</div>
+          <h1 id="hero-title">See what the<br>block <em>actually</em> did.</h1>
+          <p class="hero-lede">Supersonic turns World Chain execution into queryable evidence—from in-process reth ingestion to call traces, derived findings and investigation graphs.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#story">Follow the investigation <i data-lucide="arrow-down-right" aria-hidden="true"></i></a>
+            <a class="text-link" href="https://github.com/ozzyshaik-org/world-supersonic-public" target="_blank" rel="noreferrer">Inspect the open-source core <i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          </div>
+          <p class="hero-disclosure"><i data-lucide="scan-eye" aria-hidden="true"></i> Interactive product preview. No live chain or production connection.</p>
+        </div>
+
+        <div class="hero-visual" id="hero-visual">
+          <div class="scene-poster" aria-hidden="true">
+            <svg viewBox="0 0 640 640"><g fill="none" stroke="currentColor"><path d="M82 442 202 318 318 370 456 196 564 242"/><path d="m202 318 20-158m96 210 26-216m112 42 54 264M82 442l188 38 294-238"/></g><g fill="currentColor"><circle cx="82" cy="442" r="7"/><circle cx="202" cy="318" r="9"/><circle cx="222" cy="160" r="5"/><circle cx="318" cy="370" r="11"/><circle cx="344" cy="154" r="5"/><circle cx="456" cy="196" r="9"/><circle cx="510" cy="460" r="5"/><circle cx="564" cy="242" r="7"/><circle cx="270" cy="480" r="5"/></g></svg>
+          </div>
+          <div id="execution-scene" class="execution-scene" aria-hidden="true"></div>
+          <div class="scene-label scene-label-top"><span>EXECUTION FIELD</span><span>CONCEPTUAL RENDER</span></div>
+          <div class="scene-coordinate" aria-hidden="true">480 · EXECUTION LAYER</div>
+          <div class="scene-caption"><span class="scene-caption-line"></span><p>Committed blocks become<br><strong>inspectable execution.</strong></p></div>
+          <div class="scene-sequence" aria-hidden="true"><span>BLOCK</span><i data-lucide="arrow-right"></i><span>TRACE</span><i data-lucide="arrow-right"></i><span>EVIDENCE</span></div>
+        </div>
+      </div>
+      <div class="hero-rail page-shell" aria-hidden="true"><span>WORLD CHAIN</span><span class="rail-line"></span><span>EXECUTION INTELLIGENCE</span><i data-lucide="arrow-down"></i></div>
+    </section>
+
+    <section class="capability-rail" aria-label="Core capabilities">
+      <div class="page-shell capability-grid">
+        <p>ONE STACK.<br>EVERY LAYER.</p>
+        <span>RETH EXEX</span><span>FULL CALL TRACES</span><span>CLICKHOUSE</span><span>REST + WEBSOCKET</span><span>SGIP GRAPHS</span>
+      </div>
+    </section>
+
+    <section class="section story-section" id="story" aria-labelledby="story-title">
+      <div class="page-shell story-opening">
+        <div>
+          <span class="section-index">THE INVESTIGATION STORY / SYNTHETIC WALKTHROUGH</span>
+          <h2 id="story-title">A hash tells you where to look.<br><em>Not what happened.</em></h2>
+        </div>
+        <div class="story-setup">
+          <p>Imagine a World Chain researcher or agent receives an execution-level alert. The transaction is final, but the useful questions are just beginning: which contracts were called, what does the detector actually see, and can anybody inspect the same evidence?</p>
+          <p>Follow one deliberately synthetic transaction through the four moments that turn a derived row into an investigation.</p>
+        </div>
+      </div>
+
+      <dl class="page-shell story-status-ledger" aria-label="Walkthrough status">
+        <div><dt>Existing baseline</dt><dd>Indexing · derived datasets · APIs · SGIP</dd></div>
+        <div><dt>This walkthrough</dt><dd>Synthetic records · no live chain call</dd></div>
+        <div><dt>Product direction</dt><dd>Payment · identity checkpoint · receipt</dd></div>
+      </dl>
+
+      <div class="page-shell story-layout" data-story>
+        <div class="story-chapters">
+          <article class="story-chapter is-active" data-story-step="0">
+            <span class="story-chapter-index">CHAPTER 01 / DETECT</span>
+            <h3>Start with a lead.<br><em>Not a conclusion.</em></h3>
+            <p>The MEV detector surfaces a candidate from blocks that have already been fully ingested. That gives the investigator somewhere precise to begin, without pretending the classifier has proved intent or realized profit.</p>
+            <dl class="story-chapter-contract"><div><dt>Input</dt><dd>Derived execution data</dd></div><div><dt>Output</dt><dd>SYNTHETIC TX A</dd></div></dl>
+            <div class="story-mobile-visual" data-story-mobile="0" aria-hidden="true"></div>
+          </article>
+
+          <article class="story-chapter" data-story-step="1">
+            <span class="story-chapter-index">CHAPTER 02 / TRACE</span>
+            <h3>Open the exact execution.<br><em>Keep the same hash.</em></h3>
+            <p>The transaction hash connects the derived lead to SGIP. Instead of exporting a row and reconstructing context elsewhere, the investigator opens the call path for that exact transaction and follows entry, routers, venues, and return.</p>
+            <dl class="story-chapter-contract"><div><dt>Route</dt><dd>/api/tx/{tx_hash}</dd></div><div><dt>Context</dt><dd>Calls linked to the same transaction</dd></div></dl>
+            <div class="story-mobile-visual" data-story-mobile="1" aria-hidden="true"></div>
+          </article>
+
+          <article class="story-chapter" data-story-step="2">
+            <span class="story-chapter-index">CHAPTER 03 / VERIFY</span>
+            <h3>Challenge the detector.<br><em>Inspect the lineage.</em></h3>
+            <p>Raw transactions, call traces, and logs remain in operator-controlled ClickHouse beside the derived finding. The investigator can ask what produced the row and where the classification stops being certain.</p>
+            <dl class="story-chapter-contract"><div><dt>Evidence</dt><dd>Raw records + derived rule</dd></div><div><dt>Boundary</dt><dd>Candidate ≠ intent or profit</dd></div></dl>
+            <div class="story-mobile-visual" data-story-mobile="2" aria-hidden="true"></div>
+          </article>
+
+          <article class="story-chapter" data-story-step="3">
+            <span class="story-chapter-index">CHAPTER 04 / RESPOND</span>
+            <h3>Leave with an answer.<br><em>And its context.</em></h3>
+            <p>The useful output is not another isolated chart. It is a structured response whose finding, block context, and investigation route still point to the same transaction. Paid access and receipts are part of the product direction; neither is issued in this preview.</p>
+            <dl class="story-chapter-contract"><div><dt>Core result</dt><dd>Finding + graph + evidence context</dd></div><div><dt>Planned</dt><dd>Paid access + stored-response receipt</dd></div></dl>
+            <div class="story-mobile-visual" data-story-mobile="3" aria-hidden="true"></div>
+          </article>
+        </div>
+
+        <div class="story-stage-column">
+          <div class="story-sticky">
+            <div class="story-stage" id="story-stage">
+              <div class="story-stage-topbar"><span id="story-stage-label">01 / DERIVED LEAD</span><span>SYNTHETIC · NOT CHAIN DATA</span></div>
+              <div class="story-visual" id="story-visual" role="img" aria-label="Synthetic derived finding for transaction A"></div>
+              <div class="story-stage-progress" aria-hidden="true"><span></span></div>
+            </div>
+            <div class="story-progress" role="group" aria-label="Investigation chapters">
+              <button type="button" data-story-go="0" aria-pressed="true">01 <span>Detect</span></button>
+              <button type="button" data-story-go="1" aria-pressed="false">02 <span>Trace</span></button>
+              <button type="button" data-story-go="2" aria-pressed="false">03 <span>Verify</span></button>
+              <button type="button" data-story-go="3" aria-pressed="false">04 <span>Respond</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="page-shell story-resolution">
+        <p><span>THE PRODUCT MOMENT</span>A finding and its evidence stay connected from the first question to the final inspection.</p>
+        <a class="button button-primary" href="#product">Try the investigation workspace <i data-lucide="arrow-down-right" aria-hidden="true"></i></a>
+      </div>
+    </section>
+
+    <section class="section fit-section" id="why" aria-labelledby="why-title">
+      <div class="page-shell">
+        <div class="section-intro split-intro">
+          <div><span class="section-index">WHY SUPERSONIC / THE PRODUCT DIFFERENCE</span><h2 id="why-title">Less stitching.<br><em>More investigating.</em></h2></div>
+          <p>Supersonic specializes in one connected World Chain workflow: committed execution becomes raw evidence, a derived lead, and an investigation graph without handing the investigation across disconnected tools.</p>
+        </div>
+
+        <div class="fit-table" role="table" aria-label="Supersonic competitive positioning">
+          <div class="fit-row fit-head" role="row"><span role="columnheader">Category</span><span role="columnheader">Known for</span><span role="columnheader">Supersonic’s lane</span></div>
+          <div class="fit-row" role="row"><strong role="cell">Alchemy · QuickNode</strong><span role="cell">Managed RPC, streams, and application tooling.</span><span role="cell">World Chain ExEx → raw evidence → derived lead → SGIP.</span></div>
+          <div class="fit-row" role="row"><strong role="cell">The Graph</strong><span role="cell">Programmable indexing and decentralized serving.</span><span role="cell">Operator-controlled ClickHouse with a linked investigation surface.</span></div>
+          <div class="fit-row" role="row"><strong role="cell">Allium · Dune</strong><span role="cell">Curated analytics, SQL research, and collaboration.</span><span role="cell">Execution investigation close to the indexing and API layer.</span></div>
+          <div class="fit-row" role="row"><strong role="cell">Tenderly</strong><span role="cell">Simulation, debugging, and transaction operations.</span><span role="cell">Chain-wide derived discovery before transaction inspection.</span></div>
+        </div>
+
+        <div class="fit-bottom">
+          <blockquote>Our ambition is to become the most direct path from <em>World Chain activity</em> to evidence people can inspect.</blockquote>
+          <div class="fit-audience"><span class="mono-label">BUILT FOR</span><p><strong>World Chain developers · execution researchers · agents and backends</strong></p><p>Specialized by design. Equivalent workflows can be assembled on broader platforms.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section product-section" id="product" aria-labelledby="product-title">
+      <div class="page-shell">
+        <div class="section-intro split-intro">
+          <div><span class="section-index">PRODUCT / INVESTIGATION</span><h2 id="product-title">From a finding to a<br><em>transaction you can inspect.</em></h2></div>
+          <p>A derived MEV row is the lead—not the conclusion. Follow its transaction hash into the execution graph, inspect the underlying calls and keep the response tied to evidence.</p>
+        </div>
+
+        <div class="workspace" id="investigation-workspace">
+          <div class="workspace-topbar">
+            <div class="workspace-title"><span class="window-glyph" aria-hidden="true"></span>SUPERSONIC / INVESTIGATION WORKSPACE</div>
+            <span class="preview-badge"><span></span>SYNTHETIC PRODUCT PREVIEW</span>
+          </div>
+          <div class="workspace-grid">
+            <aside class="finding-panel" aria-label="Synthetic findings">
+              <div class="panel-heading"><span>Derived dataset</span><code>/v1/mev/analytics</code></div>
+              <div class="filter-group" role="group" aria-label="Filter synthetic findings">
+                <button type="button" class="filter-button active" data-filter="all" aria-pressed="true">All</button>
+                <button type="button" class="filter-button" data-filter="arbitrage" aria-pressed="false">Arbitrage</button>
+                <button type="button" class="filter-button" data-filter="sandwich" aria-pressed="false">Sandwich</button>
+              </div>
+              <div class="finding-list" id="finding-list"></div>
+              <p class="panel-note">Illustrative records only. Candidates are not proof of intent or realized profit.</p>
+            </aside>
+
+            <div class="trace-panel">
+              <div class="trace-heading">
+                <div><span class="mono-label">SELECTED LEAD</span><h3 id="trace-title">Synthetic transaction A</h3></div>
+                <span class="candidate-badge" id="trace-kind">ARBITRAGE CANDIDATE</span>
+              </div>
+              <div class="trace-view-switch" role="tablist" aria-label="Investigation result view">
+                <button class="active" id="trace-tab-graph" type="button" role="tab" aria-selected="true" aria-controls="trace-graph" data-trace-view="graph">Call graph</button>
+                <button id="trace-tab-response" type="button" role="tab" aria-selected="false" aria-controls="trace-response" data-trace-view="response" tabindex="-1">Response + metadata</button>
+              </div>
+              <div class="trace-graph" id="trace-graph" role="tabpanel" aria-labelledby="trace-tab-graph"></div>
+              <div class="trace-response" id="trace-response" role="tabpanel" aria-labelledby="trace-tab-response" hidden>
+                <div class="response-toolbar"><span>FIELD-SHAPED SYNTHETIC EXAMPLES</span><button class="button button-small" id="copy-response" type="button"><i data-lucide="copy" aria-hidden="true"></i><span aria-live="polite">Copy derived JSON</span></button></div>
+                <div class="response-grid">
+                  <section><span class="mono-label">DERIVED API / /v1/mev/analytics · ONE-ITEM ARRAY</span><pre tabindex="0" aria-label="Synthetic derived API JSON"><code id="derived-response-json"></code></pre></section>
+                  <section><span class="mono-label">SGIP META / /api/tx/{tx_hash}</span><pre tabindex="0" aria-label="Synthetic SGIP metadata JSON"><code id="sgip-response-json"></code></pre></section>
+                </div>
+                <p class="response-boundary">These are two separate response shapes shown together for explanation—not a composite production endpoint. The graph tab illustrates the SGIP <code>elements</code>; values and identifiers are synthetic.</p>
+              </div>
+              <div class="trace-controls" id="trace-controls">
+                <button class="icon-button trace-play" id="trace-play" type="button" aria-label="Play trace"><i data-lucide="play" aria-hidden="true"></i></button>
+                <label class="scrubber-label" for="trace-scrubber"><span>Trace step</span><output id="trace-output">1 / 6</output></label>
+                <input id="trace-scrubber" type="range" min="0" max="5" value="0" step="1">
+                <button class="icon-button" id="trace-reset" type="button" aria-label="Reset trace"><i data-lucide="rotate-ccw" aria-hidden="true"></i></button>
+              </div>
+            </div>
+
+            <aside class="evidence-panel" aria-label="Evidence context">
+              <div class="panel-heading"><span>Evidence context</span><i data-lucide="braces" aria-hidden="true"></i></div>
+              <dl class="evidence-list">
+                <div><dt>Transaction</dt><dd id="evidence-tx">SYNTHETIC TX A</dd></div>
+                <div><dt>Block context</dt><dd id="evidence-block">SAMPLE BLOCK 001</dd></div>
+                <div><dt>Canonical traces</dt><dd class="available"><span></span>Public SGIP route · synthetic graph</dd></div>
+                <div><dt>Payment receipt</dt><dd>Not issued in preview</dd></div>
+              </dl>
+              <div class="trace-explanation"><span class="mono-label">CURRENT STEP</span><p id="step-explanation">Entry call opens the synthetic execution path.</p></div>
+              <a class="text-link" href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/30b9caacee9916a103401255e844c1e78bf1b157/sgip/main.py#L259-L351" target="_blank" rel="noreferrer">Inspect SGIP source <i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+            </aside>
+          </div>
+          <div class="workspace-footer"><span><i data-lucide="info" aria-hidden="true"></i>No payment, identity check, chain query or settlement is executed here.</span><span>REST LEAD → SAME TRANSACTION → SGIP GRAPH</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section architecture-section" id="architecture" aria-labelledby="architecture-title">
+      <div class="page-shell">
+        <div class="section-intro split-intro">
+          <div><span class="section-index">ARCHITECTURE / OPERATOR CONTROL</span><h2 id="architecture-title">One path from committed<br>block to <em>evidence.</em></h2></div>
+          <p>Supersonic integrates extraction, raw and derived datasets, APIs and investigation UI. Select a layer to inspect its role and its boundary.</p>
+        </div>
+
+        <div class="architecture-explorer">
+          <div class="pipeline" role="tablist" aria-label="Architecture layers">
+            <button class="pipeline-stage active" id="stage-exex" type="button" role="tab" aria-selected="true" aria-controls="stage-detail" data-stage="exex"><span class="stage-node">01</span><span><strong>Reth ExEx</strong><small>Committed execution</small></span></button>
+            <span class="pipeline-connector" aria-hidden="true"></span>
+            <button class="pipeline-stage" id="stage-tank" type="button" role="tab" aria-selected="false" aria-controls="stage-detail" data-stage="tank"><span class="stage-node">02</span><span><strong>tank-engine</strong><small>Ingest + derive</small></span></button>
+            <span class="pipeline-connector" aria-hidden="true"></span>
+            <button class="pipeline-stage" id="stage-store" type="button" role="tab" aria-selected="false" aria-controls="stage-detail" data-stage="store"><span class="stage-node">03</span><span><strong>ClickHouse</strong><small>Raw + derived data</small></span></button>
+            <span class="pipeline-connector" aria-hidden="true"></span>
+            <button class="pipeline-stage" id="stage-api" type="button" role="tab" aria-selected="false" aria-controls="stage-detail" data-stage="api"><span class="stage-node">04</span><span><strong>API layer</strong><small>REST + WebSocket</small></span></button>
+            <span class="pipeline-connector" aria-hidden="true"></span>
+            <button class="pipeline-stage" id="stage-sgip" type="button" role="tab" aria-selected="false" aria-controls="stage-detail" data-stage="sgip"><span class="stage-node">05</span><span><strong>SGIP</strong><small>Investigation graph</small></span></button>
+          </div>
+          <div class="stage-detail" id="stage-detail" role="tabpanel" aria-labelledby="stage-exex">
+            <div><span class="mono-label" id="stage-kicker">INSIDE THE NODE</span><h3 id="stage-title">Tap execution where it commits.</h3><p id="stage-copy">The Execution Extension runs inside op-reth and streams each committed block—header, transactions, call traces and logs—over gRPC on a Unix socket.</p></div>
+            <div class="stage-contract"><span>OUTPUT</span><code id="stage-output">nodestream.proto</code><span>BOUNDARY</span><p id="stage-boundary">Public ExEx is compile-verified against unmodified upstream reth; runtime and production parity are not claimed.</p></div>
+          </div>
+        </div>
+
+        <div class="measurement-block">
+          <div class="measurement-intro"><span class="section-index">DATED OPERATOR MEASUREMENT</span><h3>A large dataset.<br>A transparent caveat.</h3><p>Self-reported, read-only production measurements from 24 October 2026. These are not live counters or independent benchmarks.</p><a class="text-link" href="https://github.com/ozzyshaik-org/world-supersonic-public#what-is-live-and-what-is-not-known-limits" target="_blank" rel="noreferrer">Read what is live—and what is not <i data-lucide="arrow-up-right" aria-hidden="true"></i></a></div>
+          <dl class="measurements">
+            <div><dt>Indexed call traces</dt><dd>≈17.6<span>B</span></dd></div>
+            <div><dt>Indexed transactions</dt><dd>≈720<span>M</span></dd></div>
+            <div><dt>Rows across ~55 tables</dt><dd>≈30<span>B</span></dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="section proof-section" id="proof" aria-labelledby="proof-title">
+      <div class="page-shell">
+        <div class="section-intro split-intro">
+          <div><span class="section-index">PROOF REGISTER / SOURCE-LEVEL REFERENCES</span><h2 id="proof-title">Every claim has a source.<br><em>Every state has a label.</em></h2></div>
+          <p>The product story is only useful if its evidence can be inspected. Follow each claim to public code, a dated measurement or an explicitly planned specification.</p>
+        </div>
+        <div class="proof-legend" aria-label="Evidence states"><span><i class="proof-dot core"></i>Public core</span><span><i class="proof-dot measured"></i>Dated measurement</span><span><i class="proof-dot synthetic"></i>Synthetic preview</span><span><i class="proof-dot planned"></i>Planned specification</span></div>
+        <div class="proof-register">
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/30b9caacee9916a103401255e844c1e78bf1b157/exex/src/main.rs" target="_blank" rel="noreferrer"><span class="proof-state core">PUBLIC CORE</span><strong>Committed execution stream</strong><code>exex/src/main.rs</code><small>Reth Execution Extension source</small><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/30b9caacee9916a103401255e844c1e78bf1b157/cmd/rpc-gateway/main.go#L1049-L1139" target="_blank" rel="noreferrer"><span class="proof-state core">PUBLIC CORE</span><strong>Derived MEV API</strong><code>GetMevAnalyticsHandler</code><small>Query path and JSON array response</small><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/30b9caacee9916a103401255e844c1e78bf1b157/sgip/main.py#L259-L343" target="_blank" rel="noreferrer"><span class="proof-state core">PUBLIC CORE</span><strong>Same-transaction investigation graph</strong><code>/api/tx/{tx_hash}</code><small>Canonical traces → graph elements + metadata</small><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/30b9caacee9916a103401255e844c1e78bf1b157/exex/README.md#L7-L20" target="_blank" rel="noreferrer"><span class="proof-state synthetic">KNOWN BOUNDARY</span><strong>Compile verification is not runtime parity</strong><code>exex/README.md</code><small>Public build status and production difference</small><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/30b9caacee9916a103401255e844c1e78bf1b157/README.md#what-is-live-and-what-is-not-known-limits" target="_blank" rel="noreferrer"><span class="proof-state measured">DATED MEASUREMENT</span><strong>Scale figures with provenance</strong><code>24 OCT 2026 · READ-ONLY</code><small>Self-reported operator readings, not benchmarks</small><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/30b9caacee9916a103401255e844c1e78bf1b157/docs/hackathon/05-investigation-evidence.md" target="_blank" rel="noreferrer"><span class="proof-state planned">PLANNED</span><strong>Public fixture + one-command verification</strong><code>05-investigation-evidence.md</code><small>Specification only; no run or result is claimed</small><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section core-section" id="core" aria-labelledby="core-title">
+      <div class="page-shell">
+        <div class="section-intro split-intro">
+          <div><span class="section-index">INTERACTIVE 3D / SYSTEM ANATOMY</span><h2 id="core-title">Open the execution core.<br><em>Inspect every layer.</em></h2></div>
+          <p>Orbit the architecture, separate its layers or switch to a transaction cutaway. These are explanatory models—not a claim that the website is connected to your infrastructure.</p>
+        </div>
+
+        <div class="core-showcase">
+          <div class="core-toolbar">
+            <div class="core-model-switch" role="tablist" aria-label="3D model selection">
+              <button class="active" id="core-mode-stack" type="button" role="tab" aria-selected="true" data-core-mode="stack"><i data-lucide="layers-3" aria-hidden="true"></i>System stack</button>
+              <button id="core-mode-transaction" type="button" role="tab" aria-selected="false" data-core-mode="transaction"><i data-lucide="box" aria-hidden="true"></i>Transaction anatomy</button>
+            </div>
+            <div class="core-view-controls">
+              <button class="core-control" id="core-explode" type="button" aria-pressed="false"><i data-lucide="unfold-vertical" aria-hidden="true"></i><span>Explode view</span></button>
+              <button class="core-control" id="core-motion" type="button" aria-pressed="true"><i data-lucide="pause" aria-hidden="true"></i><span>Pause motion</span></button>
+              <button class="icon-button" id="core-reset" type="button" aria-label="Reset 3D camera"><i data-lucide="rotate-ccw" aria-hidden="true"></i></button>
+            </div>
+          </div>
+          <div class="core-body">
+            <div class="core-stage">
+              <div class="core-poster" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+              <div id="core-scene" class="core-scene"></div>
+              <div class="core-scene-meta"><span>CONCEPTUAL MODEL</span><span id="core-model-name">SYSTEM STACK / 5 LAYERS</span></div>
+              <div class="core-gesture"><i data-lucide="mouse-pointer-2" aria-hidden="true"></i>Drag to orbit · Pinch or scroll to zoom · Select a label</div>
+            </div>
+            <aside class="core-inspector" aria-label="Selected 3D component">
+              <span class="mono-label" id="core-component-kicker">LAYER 01 / EXTRACTION</span>
+              <h3 id="core-component-title">Reth Execution Extension</h3>
+              <p id="core-component-copy">Committed execution leaves the node as a typed stream of blocks, transactions, logs and call traces.</p>
+              <div class="core-component-list" id="core-component-list" aria-label="Model components"></div>
+              <dl class="core-facts">
+                <div><dt>Surface</dt><dd id="core-component-surface">exex/ + nodestream.proto</dd></div>
+                <div><dt>Model status</dt><dd>Conceptual · baseline architecture</dd></div>
+              </dl>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section blueprint-section" id="blueprints" aria-labelledby="blueprints-title">
+      <div class="page-shell">
+        <div class="section-intro split-intro">
+          <div><span class="section-index">TECHNICAL BLUEPRINTS / EVIDENCE PATHS</span><h2 id="blueprints-title">Follow the data.<br><em>Challenge the boundaries.</em></h2></div>
+          <p>Three inspectable diagrams: where a finding comes from, how a planned paid request unfolds, and which payment transitions are allowed or prohibited.</p>
+        </div>
+
+        <div class="blueprint-shell">
+          <div class="blueprint-tabs" role="tablist" aria-label="Technical diagrams">
+            <button class="active" id="blueprint-tab-lineage" type="button" role="tab" aria-selected="true" aria-controls="blueprint-content" data-blueprint="lineage"><i data-lucide="database-zap" aria-hidden="true"></i><span><strong>Data lineage</strong><small>Raw records → derived lead → graph</small></span></button>
+            <button id="blueprint-tab-sequence" type="button" role="tab" aria-selected="false" aria-controls="blueprint-content" data-blueprint="sequence"><i data-lucide="waypoints" aria-hidden="true"></i><span><strong>Paid sequence</strong><small>Agent → payment → evidence</small></span></button>
+            <button id="blueprint-tab-states" type="button" role="tab" aria-selected="false" aria-controls="blueprint-content" data-blueprint="states"><i data-lucide="git-branch" aria-hidden="true"></i><span><strong>Payment states</strong><small>Allowed and forbidden transitions</small></span></button>
+          </div>
+          <div class="blueprint-content" id="blueprint-content" role="tabpanel" aria-labelledby="blueprint-tab-lineage"></div>
+          <div class="blueprint-footer"><span id="blueprint-status"><span class="status-dot"></span>BASELINE DATA MODEL · CONCEPTUAL MAP</span><span>SELECT ANY NODE OR STEP TO INSPECT IT</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section continuity-section" id="roadmap" aria-labelledby="roadmap-title">
+      <div class="page-shell">
+        <div class="continuity-heading">
+          <div><span class="section-index">PRODUCT ROADMAP / THE SAME INVESTIGATION</span><h2 id="roadmap-title">Make the answer<br><em>payable and permissioned.</em></h2></div>
+          <div class="planned-stamp"><i data-lucide="calendar-clock" aria-hidden="true"></i><span>PRODUCT DIRECTION<br><strong>NOT LIVE · SPECIFICATIONS ONLY</strong></span></div>
+        </div>
+
+        <div class="investigation-flow" aria-label="Planned paid investigation flow">
+          <article><span class="flow-number">01</span><i data-lucide="radar" aria-hidden="true"></i><h3>Choose the lead</h3><p>An agent requests a derived execution-level finding.</p><code>/v1/mev/analytics</code></article>
+          <article><span class="flow-number">02</span><i data-lucide="circle-dollar-sign" aria-hidden="true"></i><h3>Authorize once</h3><p>Arc/x402 payment is accepted before fulfillment. Gateway batches later.</p><code>402 → settle() → fulfill</code></article>
+          <article><span class="flow-number">03</span><i data-lucide="user-check" aria-hidden="true"></i><h3>Checkpoint when needed</h3><p>Agent Pass adds fresh human approval. It never replaces payment.</p><code>APPROVAL ≠ PAYMENT</code></article>
+          <article><span class="flow-number">04</span><i data-lucide="workflow" aria-hidden="true"></i><h3>Follow the evidence</h3><p>The same transaction hash opens SGIP. A replay returns the stored response.</p><code>TX HASH → GRAPH → RECEIPT</code></article>
+        </div>
+
+        <div class="integration-register">
+          <details>
+            <summary><span><strong>Arc / x402</strong><small>Agent-paid query access</small></span><span class="detail-status">CORE PRIORITY · PLANNED</span><i data-lucide="plus" aria-hidden="true"></i></summary>
+            <div class="detail-body"><p>GET-only paid access using Circle Gateway nanopayments in USDC on Arc. The seller calls <code>settle()</code> before fulfillment; Circle Gateway verifies, locks, queues and later batches onchain settlement. Only <code>completed</code> counts as locally settled.</p><a class="text-link" href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/main/docs/hackathon/01-x402-arc-gateway.md" target="_blank" rel="noreferrer">Read the payment specification <i data-lucide="arrow-up-right" aria-hidden="true"></i></a></div>
+          </details>
+          <details>
+            <summary><span><strong>World ID / IDKit</strong><small>Human-gated free-tier key</small></span><span class="detail-status">CORE PRIORITY · PLANNED</span><i data-lucide="plus" aria-hidden="true"></i></summary>
+            <div class="detail-body"><p>One active self-service free-tier key per action-scoped nullifier, backed by server verification and transactional key lifecycle controls. This trust moment is separate from Agent Pass.</p><a class="text-link" href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/main/docs/hackathon/02-world-id-gating.md" target="_blank" rel="noreferrer">Read the IDKit specification <i data-lucide="arrow-up-right" aria-hidden="true"></i></a></div>
+          </details>
+          <details>
+            <summary><span><strong>World ID / Agent Pass</strong><small>Fresh approval for one operation</small></span><span class="detail-status">THIRD PRIORITY · PLANNED</span><i data-lucide="plus" aria-hidden="true"></i></summary>
+            <div class="detail-body"><p>An agent proposes an exact operation; the backend pauses it; a human freshly authenticates and separately approves or denies the displayed action. Approval is consumed atomically with execution reservation and does not replace Arc payment.</p><a class="text-link" href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/main/docs/hackathon/04-agent-pass.md" target="_blank" rel="noreferrer">Read the Agent Pass specification <i data-lucide="arrow-up-right" aria-hidden="true"></i></a></div>
+          </details>
+          <details>
+            <summary><span><strong>ENS</strong><small>Name inputs for two address routes</small></span><span class="detail-status">FOURTH PRIORITY · CONDITIONAL</span><i data-lucide="plus" aria-hidden="true"></i></summary>
+            <div class="detail-body"><p>Deliberately narrow: mainnet forward resolution for <code>/v1/balance</code> and <code>/v1/transactions</code>, resolved before payment and pinned through fulfillment. The resolved address stays fixed through retries so the name cannot silently change the paid request.</p><a class="text-link" href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/main/docs/hackathon/03-ens-integration.md" target="_blank" rel="noreferrer">Read the ENS specification <i data-lucide="arrow-up-right" aria-hidden="true"></i></a></div>
+          </details>
+        </div>
+        <p class="continuity-note">One product test guides every integration: does it make the investigation easier to request, safer to authorize, or simpler to verify? If it does not strengthen that workflow, it does not belong in the story.</p>
+      </div>
+    </section>
+
+    <section class="section evidence-section" id="verify" aria-labelledby="verify-title">
+      <div class="page-shell evidence-cta">
+        <div><span class="section-index">OPEN BY DESIGN</span><h2 id="verify-title">Built to be inspected.<br><em>Designed to earn trust.</em></h2><p>Explore the open-source core, the architecture boundaries and the evidence behind the product story. A polished preview should start a technical conversation—not end one.</p></div>
+        <div class="evidence-links">
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public" target="_blank" rel="noreferrer"><span><i data-lucide="code" aria-hidden="true"></i>Open-source core</span><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/main/CONTINUITY.md" target="_blank" rel="noreferrer"><span><i data-lucide="git-compare-arrows" aria-hidden="true"></i>Baseline and project history</span><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/main/EVIDENCE.md" target="_blank" rel="noreferrer"><span><i data-lucide="list-checks" aria-hidden="true"></i>Evidence register</span><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+          <a href="https://github.com/ozzyshaik-org/world-supersonic-public/blob/main/DEMO_PLAN.md" target="_blank" rel="noreferrer"><span><i data-lucide="clapperboard" aria-hidden="true"></i>Demo plan—not a result</span><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="page-shell footer-grid">
+      <a class="brand footer-brand" href="#top" aria-label="Back to top"><svg class="brand-mark" viewBox="0 0 42 42" aria-hidden="true"><path d="M5 27 16 8h20L25 27H5Zm8 8 8-13h16L29 35H13Z" fill="currentColor"/></svg><span class="brand-word">SUPERSONIC</span></a>
+      <p>Execution-level indexing and investigation infrastructure for World Chain. MIT-licensed public core.</p>
+      <button class="text-link footer-pitch" type="button" data-open-pitch>Enter pitch mode <i data-lucide="arrow-up-right" aria-hidden="true"></i></button>
+      <p class="footer-disclosure">This website is an interactive product preview. Its workspace uses synthetic records; roadmap integrations are planned and labelled accordingly.</p>
+    </div>
+  </footer>
+
+  <div class="pitch-overlay" id="pitch-overlay" role="dialog" aria-modal="true" aria-labelledby="pitch-slide-title" hidden>
+    <div class="pitch-header">
+      <div class="brand"><svg class="brand-mark" viewBox="0 0 42 42" aria-hidden="true"><path d="M5 27 16 8h20L25 27H5Zm8 8 8-13h16L29 35H13Z" fill="currentColor"/></svg><span class="brand-word">SUPERSONIC</span><span class="brand-chain" id="pitch-section-label">01 / THESIS</span></div>
+      <span class="pitch-hint">← → NAVIGATE · O OVERVIEW · N NOTES · F FULLSCREEN · ESC EXIT</span>
+      <div class="pitch-header-actions">
+        <button class="pitch-header-button" id="pitch-overview" type="button" aria-pressed="false" aria-label="Toggle slide overview"><i data-lucide="layout-grid" aria-hidden="true"></i><span>Overview</span></button>
+        <button class="pitch-header-button" id="pitch-notes" type="button" aria-pressed="false" aria-label="Toggle speaker notes"><i data-lucide="notebook-text" aria-hidden="true"></i><span>Notes</span></button>
+        <button class="pitch-header-button" id="pitch-fullscreen" type="button" aria-pressed="false" aria-label="Enter fullscreen"><i data-lucide="maximize-2" aria-hidden="true"></i><span>Fullscreen</span></button>
+        <button class="icon-button" id="pitch-close" type="button" aria-label="Exit pitch mode"><i data-lucide="x" aria-hidden="true"></i></button>
+      </div>
+    </div>
+    <div class="pitch-time-rail" aria-hidden="true"><span id="pitch-time-progress"></span></div>
+    <div class="pitch-workspace">
+      <aside class="pitch-overview-panel" id="pitch-overview-panel" aria-label="Slide overview" hidden><span class="pitch-panel-label">9 SLIDES / 4 MINUTES</span><div id="pitch-overview-list"></div></aside>
+      <div class="pitch-slide" id="pitch-slide" aria-live="polite"></div>
+      <aside class="pitch-notes-panel" id="pitch-notes-panel" aria-label="Speaker notes" hidden><span class="pitch-panel-label">SPEAKER NOTES / CURRENT SLIDE</span><p id="pitch-note-text"></p><a class="text-link" id="pitch-source" href="https://github.com/ozzyshaik-org/world-supersonic-public" target="_blank" rel="noreferrer">Inspect source <i data-lucide="arrow-up-right" aria-hidden="true"></i></a><div class="pitch-shortcuts" aria-label="Pitch keyboard shortcuts"><span>Next / previous <kbd>← →</kbd></span><span>First / last <kbd>Home End</kbd></span><span>Overview <kbd>O</kbd></span><span>Notes <kbd>N</kbd></span><span>Fullscreen <kbd>F</kbd></span><span>Auto play / pause <kbd>Space</kbd></span></div></aside>
+    </div>
+    <div class="pitch-footer">
+      <div class="pitch-playback"><button class="button button-small" id="pitch-autoplay" type="button" aria-pressed="false" aria-label="Play pitch automatically"><i data-lucide="play" aria-hidden="true"></i><span>Auto play</span></button><span id="pitch-timing">00:20 LEFT / 04:00 TOTAL</span><div class="pitch-autoplay-track" aria-hidden="true"><span id="pitch-autoplay-progress"></span></div></div>
+      <div class="pitch-progress" id="pitch-progress" aria-label="Pitch slides"></div>
+      <div class="pitch-controls"><button class="icon-button" id="pitch-prev" type="button" aria-label="Previous slide"><i data-lucide="arrow-left" aria-hidden="true"></i></button><span id="pitch-count">01 / 09</span><button class="button button-primary" id="pitch-next" type="button">Next <i data-lucide="arrow-right" aria-hidden="true"></i></button></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
