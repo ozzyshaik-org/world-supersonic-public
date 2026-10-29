@@ -40,6 +40,21 @@ Planned product capabilities (specifications only, not yet implemented):
 
 Each capability must strengthen the same request → authorize → investigate → replay workflow. The product story is not a sequence of disconnected integrations. A labelled public fixture and one-command REST/SGIP verification are planned to make the investigation reproducible without production access ([specification](docs/hackathon/05-investigation-evidence.md)); neither is an existing result.
 
+## Product website
+
+[`website/`](website/) contains the source for Supersonic's interactive product website and guided four-minute pitch. It presents the existing public core through a synthetic investigation workspace, procedural technical models, source-level references and explicitly labelled roadmap specifications. It is frontend-only: no chain query, payment, identity check, settlement, account or backend persistence is performed.
+
+The product website is **not** the planned Arc Studio event frontend and is not evidence that Arc/x402, IDKit, Agent Pass or ENS has been implemented or run. Website commits before the start tag are pre-kickoff product/presentation work under the Continuity split.
+
+```bash
+cd website
+npm ci
+npm run check
+npm run build
+```
+
+See [`website/README.md`](website/README.md) for development and preview commands, pitch controls, evidence states, the source-reference map and validation scope. No public deployment URL is claimed here.
+
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 
 This product direction is the planned extension for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated tag `baseline-pre-ethglobal-mumbai` plus every commit made before the start tag: documentation and CI, and also build, schema and lockfile work. Event work is everything after the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
@@ -121,7 +136,7 @@ Notes from a clean-clone run on Debian 13 (these steps are still partial; see th
 
 ```bash
 cp .env.example .env            # fill in; never commit
-# one schema file: creates the worldchain database and every table the services reference (empty); safe to re-run
+# one schema file: creates the `worldchain` database and every table the services reference (empty); safe to re-run
 clickhouse-client --multiquery < schema/quickstart_schema.sql
 
 go build -o bin/rpc-gateway ./cmd/rpc-gateway && ./bin/rpc-gateway     # :8081
