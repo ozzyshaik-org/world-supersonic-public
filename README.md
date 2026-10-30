@@ -44,6 +44,8 @@ Each capability must strengthen the same request → authorize → investigate �
 
 [`website/`](website/) contains the source for Supersonic's interactive product website and guided four-minute pitch. It presents the existing public core through a synthetic investigation workspace, procedural technical models, source-level references and explicitly labelled roadmap specifications. It is frontend-only: no chain query, payment, identity check, settlement, account or backend persistence is performed.
 
+**Public product website:** <https://ozzyshaik-org.github.io/world-supersonic-public/>.
+
 The product website is **not** the planned Arc Studio event frontend and is not evidence that Arc/x402, IDKit, Agent Pass or ENS has been implemented or run. Website commits before the start tag are pre-kickoff product/presentation work under the Continuity split.
 
 ```bash
@@ -53,7 +55,7 @@ npm run check
 npm run build
 ```
 
-See [`website/README.md`](website/README.md) for development and preview commands, pitch controls, evidence states, the source-reference map and validation scope. No public deployment URL is claimed here.
+See [`website/README.md`](website/README.md) for development and preview commands, pitch controls, evidence states, the source-reference map, deployment and browser-verification scope.
 
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 

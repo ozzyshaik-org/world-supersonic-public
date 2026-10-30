@@ -31,7 +31,17 @@ npm run preview  # serve the production build locally
 
 `npm test` is an alias for the same Node test suite used by `npm run check`. The build script is intentionally only `vite build`; validation remains a separate, visible step.
 
-The site uses `base: './'` so the production bundle can be hosted at a subpath. No public deployment URL is asserted by this source tree.
+The site uses `base: './'` so the production bundle can be hosted at a subpath.
+
+## Deployment
+
+**Public product website:** <https://ozzyshaik-org.github.io/world-supersonic-public/>
+
+GitHub Pages is deployed by [Deploy product website](https://github.com/ozzyshaik-org/world-supersonic-public/actions/workflows/deploy-website.yml). The workflow runs `npm ci`, `npm run check`, and `npm run build`, then publishes `website/dist`. Deployment run [41034970936](https://github.com/ozzyshaik-org/world-supersonic-public/actions/runs/41034970936) completed successfully from merge commit `e47256bd2b8a55b2bf0bfeebe9281faa883ab1e1` on 2026-10-30.
+
+Logged-out Chromium verification on 2026-10-30 covered desktop and emulated-mobile rendering, pitch deep links and controls, investigation controls and JSON contracts, 3D and diagram controls, mobile navigation, reduced motion, and deliberately disabled WebGL fallbacks. All 27 unique public page/source URLs checked returned HTTP 200, and no internal fragment target was missing. Normal rendering produced no JavaScript errors; the forced WebGL fallback produced no uncaught page exceptions.
+
+This verifies the static product website, not a live chain or backend connection, production parity, every browser or device, Arc Studio, partner integrations, or event-demo evidence.
 
 ## Product experience
 
