@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -261,4 +262,170 @@ func TestBalanceHandlerDatabaseErrorIsNotCached(t *testing.T) {
 		t.Fatalf("after recovery: status %d body %q; want 200 \"7\"", rec.Code, rec.Body.String())
 	}
 	waitCached(t, cache, lowercased, "7")
+}
+
+// ── API-key lookup and revocation ─────────────────────────────────────────────────────────────────────────────────
+
+// keyConn stands in for ClickHouse in API-key lookups: QueryRow returns info, or fails with err. It records queries.
+type keyConn struct {
+	driver.Conn
+	mu      sync.Mutex
+	queries []string
+	info    *ApiKeyInfo
+	err     error
+}
+
+func (c *keyConn) QueryRow(_ context.Context, query string, _ ...any) driver.Row {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.queries = append(c.queries, query)
+	return keyRow{info: c.info, err: c.err}
+}
+
+func (c *keyConn) set(info *ApiKeyInfo, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.info, c.err = info, err
+}
+
+func (c *keyConn) recorded() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.queries...)
+}
+
+type keyRow struct {
+	info *ApiKeyInfo
+	err  error
+}
+
+func (r keyRow) Err() error { return r.err }
+func (r keyRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	*dest[0].(*string) = r.info.ApiKey
+	*dest[1].(*string) = r.info.ClientName
+	*dest[2].(*string) = r.info.Tier
+	*dest[3].(*uint32) = r.info.RequestsPerSecond
+	*dest[4].(*uint8) = r.info.IsActive
+	*dest[5].(*time.Time) = r.info.CreatedAt
+	return nil
+}
+func (r keyRow) ScanStruct(any) error { return errors.New("not used") }
+
+func activeKey(key string) *ApiKeyInfo {
+	return &ApiKeyInfo{ApiKey: key, ClientName: "test", Tier: "pro", RequestsPerSecond: 20, IsActive: 1, CreatedAt: time.Unix(1700000000, 0).UTC()}
+}
+
+func TestLookupApiKey(t *testing.T) {
+	if apiKeyCacheTTL != 10*time.Second {
+		t.Fatalf("apiKeyCacheTTL = %s; want 10s", apiKeyCacheTTL)
+	}
+	db := &keyConn{info: activeKey("sk_live_a")}
+	ki, err := lookupApiKey(context.Background(), db, "sk_live_a")
+	if err != nil || ki == nil || ki.ApiKey != "sk_live_a" || ki.IsActive != 1 {
+		t.Fatalf("lookupApiKey = %+v, %v; want the active key", ki, err)
+	}
+	if q := db.recorded(); len(q) != 1 || !strings.Contains(q[0], "api_keys FINAL WHERE api_key = ? AND is_active = 1") {
+		t.Fatalf("query %q; want FINAL so a key revoked by a newer row is not returned", q)
+	}
+
+	db.set(nil, sql.ErrNoRows)
+	if ki, err := lookupApiKey(context.Background(), db, "sk_live_a"); !errors.Is(err, sql.ErrNoRows) || ki != nil {
+		t.Fatalf("missing or inactive key: %+v, %v; want sql.ErrNoRows", ki, err)
+	}
+	failure := errors.New("clickhouse unavailable")
+	db.set(nil, failure)
+	if ki, err := lookupApiKey(context.Background(), db, "sk_live_a"); !errors.Is(err, failure) || ki != nil {
+		t.Fatalf("lookup failure: %+v, %v; want the error", ki, err)
+	}
+}
+
+// authRequest sends one keyed request through the gateway middleware (from a non-loopback client address).
+func authRequest(h http.Handler, key string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, "/v1/block/latest", nil)
+	req.Header.Set("X-API-Key", key)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func okHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+}
+
+func TestApiKeyMiddlewareStatuses(t *testing.T) {
+	cache := startValkey(t)
+	db := &keyConn{}
+	h := newTestGateway(cache, db).ApiKeyAuthAndRateLimitMiddleware(okHandler())
+
+	db.set(nil, sql.ErrNoRows)
+	if rec := authRequest(h, "sk_missing"); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("missing or inactive key: status %d; want 401", rec.Code)
+	}
+
+	db.set(nil, errors.New("clickhouse unavailable"))
+	rec := authRequest(h, "sk_lookup_fails")
+	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") != "5" || !strings.Contains(rec.Body.String(), `"status":503`) {
+		t.Fatalf("lookup failure: status %d, Retry-After %q, body %q; want 503 with Retry-After 5", rec.Code, rec.Header().Get("Retry-After"), rec.Body.String())
+	}
+	time.Sleep(300 * time.Millisecond) // a cache write would be asynchronous
+	if n, err := cache.Do(context.Background(), cache.B().Exists().Key("worldchain:apikey:sk_lookup_fails").Build()).AsInt64(); err != nil || n != 0 {
+		t.Fatalf("a failed lookup was cached (exists=%d, %v)", n, err)
+	}
+
+	db.set(activeKey("sk_active"), nil)
+	if rec := authRequest(h, "sk_active"); rec.Code != http.StatusOK || rec.Header().Get("X-API-Tier") != "pro" {
+		t.Fatalf("active key: status %d, tier %q; want 200, pro", rec.Code, rec.Header().Get("X-API-Tier"))
+	}
+}
+
+// A revoked key keeps being served from the cache until its entry expires (apiKeyCacheTTL, shortened to 1 s here), and is
+// refused after that. This shows the bound comes from the cache TTL; it does not measure production timing.
+func TestRevokedKeyRefusedAfterCacheTTL(t *testing.T) {
+	saved := apiKeyCacheTTL
+	apiKeyCacheTTL = time.Second // whole seconds: the Valkey entry is written with EX
+	t.Cleanup(func() { apiKeyCacheTTL = saved })
+
+	cache := startValkey(t)
+	db := &keyConn{info: activeKey("sk_revoked")}
+	h := newTestGateway(cache, db).ApiKeyAuthAndRateLimitMiddleware(okHandler())
+	ctx := context.Background()
+
+	if rec := authRequest(h, "sk_revoked"); rec.Code != http.StatusOK {
+		t.Fatalf("active key: status %d; want 200", rec.Code)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	var pttl int64
+	for {
+		v, err := cache.Do(ctx, cache.B().Pttl().Key("worldchain:apikey:sk_revoked").Build()).AsInt64()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v > 0 {
+			pttl = v
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the key record was not cached")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if pttl > apiKeyCacheTTL.Milliseconds() {
+		t.Fatalf("cache entry PTTL %d ms; want at most apiKeyCacheTTL (%d ms)", pttl, apiKeyCacheTTL.Milliseconds())
+	}
+
+	db.set(nil, sql.ErrNoRows) // revoked: with FINAL the lookup finds no active row
+	if rec := authRequest(h, "sk_revoked"); rec.Code != http.StatusOK {
+		t.Fatalf("right after revocation: status %d; want 200 from the still-valid cache entry", rec.Code)
+	}
+	for deadline := time.Now().Add(4 * time.Second); ; {
+		if rec := authRequest(h, "sk_revoked"); rec.Code == http.StatusUnauthorized {
+			break
+		} else if rec.Code != http.StatusOK || time.Now().After(deadline) {
+			t.Fatalf("after the cache TTL: status %d; want 401", rec.Code)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }

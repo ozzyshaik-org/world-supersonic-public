@@ -308,10 +308,12 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
+      description: Optional. A key that does not exist or is inactive gets 401; if the key lookup itself fails, 503 with Retry-After 5.
     ApiKeyQuery:
       type: apiKey
       in: query
       name: api_key
+      description: Same as X-API-Key (used when the header is absent).
     AdminToken:
       type: apiKey
       in: header
