@@ -23,10 +23,25 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Use up the Valkey client's sync.Once so no handler under test dials a real Valkey on 127.0.0.1:6379: with a nil
-	// client the handlers skip their cache.
-	apiValkeyOnce.Do(func() {})
+	// No handler under test may dial a real Valkey on 127.0.0.1:6379. With the address pointed at nothing and the last
+	// creation attempt dated in the future, getValkeyClient returns nil without dialing (the contract routes then skip
+	// their cache and Gatekeeper refuses with 503) unless a test installs a client with useValkey.
+	valkeyAddr = "127.0.0.1:1"
+	apiValkeyLastTry = time.Now().Add(1000 * time.Hour)
 	os.Exit(m.Run())
+}
+
+// useValkey makes getValkeyClient return c (nil: no client) until the test ends.
+func useValkey(t *testing.T, c rueidis.Client) {
+	t.Helper()
+	apiValkeyMu.Lock()
+	apiValkeyClient = c
+	apiValkeyMu.Unlock()
+	t.Cleanup(func() {
+		apiValkeyMu.Lock()
+		apiValkeyClient = nil
+		apiValkeyMu.Unlock()
+	})
 }
 
 // ── Fake database/sql driver ──────────────────────────────────────────────────────────────────────────────────────
@@ -170,40 +185,77 @@ func TestLoadActiveKeys(t *testing.T) {
 	}
 }
 
-// startValkey runs a throwaway redis-server (Valkey-compatible) on a free local port, or skips the test when the binary
-// is not installed.
-func startValkey(t *testing.T) rueidis.Client {
+// requireRedis skips the test when redis-server (Valkey-compatible) is not installed, and returns its path.
+func requireRedis(t *testing.T) string {
 	t.Helper()
 	bin, err := exec.LookPath("redis-server")
 	if err != nil {
-		t.Skip("redis-server not installed; skipping the Valkey-backed key sync test")
+		t.Skip("redis-server not installed; skipping this Valkey-backed test")
 	}
+	return bin
+}
+
+// freePort returns a local TCP port nothing listens on right now.
+func freePort(t *testing.T) int {
+	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+// redisServer is a throwaway redis-server on a local port.
+type redisServer struct {
+	addr string
+	cmd  *exec.Cmd
+}
+
+// startRedisServer starts redis-server on port and waits until it accepts connections (skips without redis-server).
+func startRedisServer(t *testing.T, port int) *redisServer {
+	t.Helper()
+	bin := requireRedis(t)
 	cmd := exec.Command(bin, "--port", fmt.Sprint(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no")
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	var client rueidis.Client
+	srv := &redisServer{addr: fmt.Sprintf("127.0.0.1:%d", port), cmd: cmd}
+	t.Cleanup(srv.stop)
 	for deadline := time.Now().Add(5 * time.Second); ; {
-		client, err = rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{addr}})
-		if err == nil {
-			break
+		if c, err := net.Dial("tcp", srv.addr); err == nil {
+			c.Close()
+			return srv
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("redis-server on %s did not come up: %v", addr, err)
+			t.Fatalf("redis-server on %s did not come up", srv.addr)
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// stop kills the server; calling it again is harmless.
+func (s *redisServer) stop() {
+	if s.cmd.ProcessState == nil {
+		_ = s.cmd.Process.Kill()
+		_ = s.cmd.Wait()
+	}
+}
+
+func newValkeyClient(t *testing.T, addr string) rueidis.Client {
+	t.Helper()
+	client, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{addr}})
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Cleanup(client.Close)
 	return client
+}
+
+// startValkey runs a throwaway redis-server and returns a client for it (skips without redis-server).
+func startValkey(t *testing.T) rueidis.Client {
+	t.Helper()
+	return newValkeyClient(t, startRedisServer(t, freePort(t)).addr)
 }
 
 func hashOf(t *testing.T, client rueidis.Client) map[string]string {
@@ -433,8 +485,8 @@ func TestContractRoutesLowercaseAddresses(t *testing.T) {
 			db = openFakeDB(t, f)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/contracts/"+input+route, nil))
-			if rec.Code == http.StatusBadRequest {
-				t.Fatalf("%s%s: 400 for a valid address", input, route)
+			if rec.Code == http.StatusBadRequest || rec.Code == http.StatusServiceUnavailable {
+				t.Fatalf("%s%s: status %d for a valid address with no Valkey; want the route to answer without its cache", input, route, rec.Code)
 			}
 			_, args := f.recorded()
 			if len(args) == 0 {
@@ -469,5 +521,191 @@ func TestContractRoutesRejectMalformedAddresses(t *testing.T) {
 				t.Fatalf("%s%s: %d database queries for a malformed address; want none", input, route, len(args))
 			}
 		}
+	}
+}
+
+// ── Gatekeeper: fails closed ──────────────────────────────────────────────────────────────────────────────────────
+
+// gatekeep sends one /ws request through Gatekeeper and reports whether it reached the wrapped handler.
+func gatekeep(t *testing.T, key string) (*httptest.ResponseRecorder, bool) {
+	t.Helper()
+	reached := false
+	h := Gatekeeper(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	})
+	target := "/ws"
+	if key != "" {
+		target += "?api_key=" + key
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, target, nil).WithContext(ctx))
+	return rec, reached
+}
+
+func gatekeeperUnavailableCount(t *testing.T) float64 {
+	t.Helper()
+	var m dto.Metric
+	if err := gatekeeperUnavailableTotal.Write(&m); err != nil {
+		t.Fatal(err)
+	}
+	return m.GetCounter().GetValue()
+}
+
+func wantRefused(t *testing.T, what string, rec *httptest.ResponseRecorder, reached bool) {
+	t.Helper()
+	if reached {
+		t.Fatalf("%s: request passed through Gatekeeper; want it refused", what)
+	}
+	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") != "5" {
+		t.Fatalf("%s: status %d, Retry-After %q; want 503 with Retry-After 5", what, rec.Code, rec.Header().Get("Retry-After"))
+	}
+}
+
+func TestGatekeeperMissingKey(t *testing.T) {
+	useValkey(t, nil)
+	if rec, reached := gatekeep(t, ""); reached || rec.Code != http.StatusUnauthorized {
+		t.Fatalf("missing api_key: status %d, passed %v; want 401, refused", rec.Code, reached)
+	}
+}
+
+func TestGatekeeperFailsClosedWithoutValkey(t *testing.T) {
+	useValkey(t, nil)
+	before := gatekeeperUnavailableCount(t)
+	rec, reached := gatekeep(t, "sk_any")
+	wantRefused(t, "no Valkey client", rec, reached)
+	if got := gatekeeperUnavailableCount(t) - before; got != 1 {
+		t.Fatalf("supersonic_gatekeeper_unavailable_total +%v; want +1", got)
+	}
+}
+
+func TestGatekeeperFailsClosedWhenCheckFails(t *testing.T) {
+	srv := startRedisServer(t, freePort(t))
+	client := newValkeyClient(t, srv.addr)
+	useValkey(t, client)
+	ctx := context.Background()
+
+	// The check script errors (api:keys is not a hash).
+	if err := client.Do(ctx, client.B().Set().Key(keysHash).Value("not-a-hash").Build()).Error(); err != nil {
+		t.Fatal(err)
+	}
+	rec, reached := gatekeep(t, "sk_ok")
+	wantRefused(t, "check script error", rec, reached)
+
+	// A valid key passes while Valkey is up, and is refused once Valkey is gone.
+	seedHash(t, client, map[string]string{"sk_ok": "50"})
+	if rec, reached := gatekeep(t, "sk_ok"); !reached || rec.Code != http.StatusOK {
+		t.Fatalf("valid key with Valkey up: status %d, passed %v; want 200, passed", rec.Code, reached)
+	}
+	srv.stop()
+	rec, reached = gatekeep(t, "sk_ok")
+	wantRefused(t, "Valkey stopped", rec, reached)
+}
+
+func TestGatekeeperKeyChecks(t *testing.T) {
+	client := startValkey(t)
+	useValkey(t, client)
+	seedHash(t, client, map[string]string{"sk_ok": "50", "sk_limited": "2"})
+
+	if rec, reached := gatekeep(t, "sk_ok"); !reached || rec.Code != http.StatusOK {
+		t.Fatalf("valid key: status %d, passed %v; want 200, passed", rec.Code, reached)
+	}
+	if rec, reached := gatekeep(t, "sk_unknown"); reached || rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unknown key: status %d, passed %v; want 401, refused", rec.Code, reached)
+	}
+	// 2 requests per second: of 6 sent at once (within at most two one-second windows) at least one is over the limit.
+	limited := 0
+	for i := 0; i < 6; i++ {
+		rec, reached := gatekeep(t, "sk_limited")
+		switch {
+		case rec.Code == http.StatusTooManyRequests && !reached:
+			limited++
+		case rec.Code == http.StatusOK && reached:
+		default:
+			t.Fatalf("limited key request %d: status %d, passed %v; want 200 or 429", i, rec.Code, reached)
+		}
+	}
+	if limited == 0 {
+		t.Fatal("no 429 for 6 immediate requests at 2 requests per second")
+	}
+}
+
+// A Valkey that is unreachable at the first attempt is picked up by a later attempt, no sooner than
+// valkeyRetryInterval after the previous one, and concurrent callers end up sharing one client.
+func TestGetValkeyClientRetriesThrottled(t *testing.T) {
+	requireRedis(t)
+	port := freePort(t)
+	apiValkeyMu.Lock()
+	savedAddr := valkeyAddr
+	valkeyAddr = fmt.Sprintf("127.0.0.1:%d", port)
+	apiValkeyClient, apiValkeyLastTry, apiValkeyConnecting = nil, time.Time{}, false
+	apiValkeyMu.Unlock()
+	t.Cleanup(func() {
+		apiValkeyMu.Lock()
+		defer apiValkeyMu.Unlock()
+		if apiValkeyClient != nil {
+			apiValkeyClient.Close()
+		}
+		valkeyAddr, apiValkeyClient = savedAddr, nil
+		apiValkeyLastTry = time.Now().Add(1000 * time.Hour)
+	})
+
+	if c := getValkeyClient(); c != nil {
+		t.Fatal("got a client with nothing listening")
+	}
+	startRedisServer(t, port)
+	if c := getValkeyClient(); c != nil {
+		t.Fatal("a new attempt was made before valkeyRetryInterval passed")
+	}
+
+	apiValkeyMu.Lock()
+	apiValkeyLastTry = time.Now().Add(-valkeyRetryInterval - time.Second)
+	apiValkeyMu.Unlock()
+	results := make([]rueidis.Client, 32)
+	var wg sync.WaitGroup
+	for i := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i] = getValkeyClient()
+		}(i)
+	}
+	wg.Wait()
+	created := getValkeyClient()
+	if created == nil {
+		t.Fatal("no client after the retry interval with Valkey up")
+	}
+	for i, c := range results {
+		if c != nil && c != created {
+			t.Fatalf("caller %d got a different client; want one shared client", i)
+		}
+	}
+	if err := created.Do(context.Background(), created.B().Ping().Build()).Error(); err != nil {
+		t.Fatalf("PING through the created client: %v", err)
+	}
+}
+
+// The contract routes still use the Valkey cache when a client is available.
+func TestContractRouteUsesValkeyCache(t *testing.T) {
+	client := startValkey(t)
+	useValkey(t, client)
+	saved := db
+	defer func() { db = saved }()
+	f := &fakeDB{}
+	db = openFakeDB(t, f)
+
+	const dot = "digraph { a -> b }"
+	if err := client.Do(context.Background(), client.B().Set().Key("cache:cfg:raw:"+lowercased).Value(dot).Build()).Error(); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	contractMux().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/contracts/"+checksummed+"/cfg/raw", nil))
+	if rec.Code != http.StatusOK || rec.Header().Get("X-Cache") != "HIT" || rec.Body.String() != dot {
+		t.Fatalf("cached cfg/raw: status %d, X-Cache %q, body %q; want 200, HIT, the cached graph", rec.Code, rec.Header().Get("X-Cache"), rec.Body.String())
+	}
+	if _, args := f.recorded(); len(args) != 0 {
+		t.Fatalf("%d database queries for a cache hit; want none", len(args))
 	}
 }

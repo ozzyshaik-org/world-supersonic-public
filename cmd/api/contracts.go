@@ -1314,23 +1314,49 @@ _, _ = w.Write([]byte(cfg))
 }
 
 
+// valkeyAddr is the Valkey instance cmd/api uses (a variable only so tests can point it at a throwaway server).
+var valkeyAddr = "127.0.0.1:6379"
+
+// valkeyRetryInterval is the minimum time between two attempts to create the Valkey client.
+const valkeyRetryInterval = 5 * time.Second
+
 var (
-apiValkeyClient rueidis.Client
-apiValkeyOnce   sync.Once
+	apiValkeyMu         sync.Mutex
+	apiValkeyClient     rueidis.Client
+	apiValkeyLastTry    time.Time
+	apiValkeyConnecting bool
 )
 
+// getValkeyClient returns the shared Valkey client, or nil while none has been created. A failed creation is retried,
+// at most once per valkeyRetryInterval and by one caller at a time; every other caller gets nil at once instead of
+// waiting on the dial. So a Valkey that was unreachable when cmd/api started is picked up later rather than never
+// (rueidis reconnects an existing client by itself). On nil, Gatekeeper refuses with 503 and the contract routes skip
+// their cache.
 func getValkeyClient() rueidis.Client {
-apiValkeyOnce.Do(func() {
-c, err := rueidis.NewClient(rueidis.ClientOption{
-InitAddress: []string{"127.0.0.1:6379"},
-})
-if err != nil {
-log.Printf("API-SERVER warn: Valkey client init failed: %v", err)
-return
-}
-apiValkeyClient = c
-})
-return apiValkeyClient
+	apiValkeyMu.Lock()
+	if apiValkeyClient != nil || apiValkeyConnecting || time.Since(apiValkeyLastTry) < valkeyRetryInterval {
+		c := apiValkeyClient
+		apiValkeyMu.Unlock()
+		return c
+	}
+	apiValkeyConnecting = true
+	apiValkeyLastTry = time.Now()
+	addr := valkeyAddr
+	apiValkeyMu.Unlock()
+
+	c, err := rueidis.NewClient(rueidis.ClientOption{
+		InitAddress: []string{addr},
+	})
+
+	apiValkeyMu.Lock()
+	defer apiValkeyMu.Unlock()
+	apiValkeyConnecting = false
+	if err != nil {
+		log.Printf("API-SERVER warn: Valkey client init failed (next attempt in %s at the earliest): %v", valkeyRetryInterval, err)
+		return nil
+	}
+	apiValkeyClient = c
+	return c
 }
 
 func refreshDepegCache() {

@@ -28,7 +28,7 @@ public sources cannot define.
 
 | Table | Referenced in |
 |---|---|
-| `world_blocks` | `cmd/rpc-gateway/main.go`:651,1481<br>`cmd/api/contracts.go`:1428<br>`sgip/main.py`:602<br>`mev-detector/mev_detector.py`:10,118,205,219 |
+| `world_blocks` | `cmd/rpc-gateway/main.go`:651,1481<br>`cmd/api/contracts.go`:1454<br>`sgip/main.py`:602<br>`mev-detector/mev_detector.py`:10,118,205,219 |
 | `world_transactions` | `cmd/rpc-gateway/main.go`:592<br>`sgip/main.py`:220,485<br>`mev-detector/mev_detector.py`:223,338,362,401,451 |
 | `world_logs` | `mev-detector/mev_detector.py`:450<br>`mev-detector/mev_enrich.py`:31 |
 | `world_traces` | `sgip/main.py`:277,598<br>`mev-detector/mev_detector.py`:227,400 |
@@ -44,12 +44,12 @@ public sources cannot define.
 | `world_sequence_gaps` | `mev-detector/mev_detector.py`:12,246,250 |
 | `ingest_checkpoints` | `mev-detector/mev_detector.py`:18,107,143,145,160,166,172 |
 | `latest_oracle_prices` | `mev-detector/mev_enrich.py`:24 |
-| `api_keys` | `cmd/rpc-gateway/main.go`:1301,1341<br>`cmd/api/main.go`:113 |
-| `api_depeg_drift` | `cmd/api/contracts.go`:1348 |
-| `api_dex_swaps` | `cmd/rpc-gateway/main.go`:892,895,898<br>`cmd/api/main.go`:202 |
+| `api_keys` | `cmd/rpc-gateway/main.go`:1301,1341<br>`cmd/api/main.go`:117 |
+| `api_depeg_drift` | `cmd/api/contracts.go`:1374 |
+| `api_dex_swaps` | `cmd/rpc-gateway/main.go`:892,895,898<br>`cmd/api/main.go`:206 |
 | `api_gas_by_function` | `cmd/api/contracts.go`:994 |
-| `api_morpho_activity` | `cmd/api/main.go`:212 |
-| `api_nft_transfers` | `cmd/api/main.go`:222 |
+| `api_morpho_activity` | `cmd/api/main.go`:216 |
+| `api_nft_transfers` | `cmd/api/main.go`:226 |
 | `api_token_balances` | `cmd/rpc-gateway/main.go`:1188,1544<br>`cmd/api/contracts.go`:682 |
 | `api_universal_defi_events` | `cmd/rpc-gateway/main.go`:996,999,1002 |
 
