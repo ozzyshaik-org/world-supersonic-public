@@ -2,7 +2,7 @@ use eyre::{eyre, Result};
 use futures::{Stream, StreamExt};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::net::UnixListener;
 use tokio::sync::{broadcast, Semaphore};
 use tokio_stream::wrappers::{BroadcastStream, UnixListenerStream};
@@ -45,6 +45,10 @@ const BROADCAST_CAP: usize = 512;
 const TRACE_QUEUE_CAP: usize = 4;
 /// MDBX RO window: reopen history_by_block_hash every N txs (no whole-block long RO).
 const TRACE_RO_CHUNK: usize = 16;
+/// DB-receipt fallback: tries before a block whose receipts never validate goes to the skip
+/// fallback (logged as `receipts_timeout`), and the pause between tries (50 x 200 ms, about 10 s).
+const RECEIPT_WAIT_ATTEMPTS: u32 = 50;
+const RECEIPT_WAIT_INTERVAL: Duration = Duration::from_millis(200);
 
 type BoxStream<T> = Pin<Box<dyn Stream<Item = T> + Send + 'static>>;
 
@@ -286,9 +290,14 @@ where
                         Vec::new()
                     };
 
-                    // Fall back to DB receipts if ExEx receipts are bad
+                    // Fall back to DB receipts if ExEx receipts are bad. The wait is bounded
+                    // (RECEIPT_WAIT_ATTEMPTS tries, RECEIPT_WAIT_INTERVAL apart): receipts that never
+                    // validate (e.g. the block is no longer in the DB) must not stall the ExEx forever.
                     if local_receipts.is_empty() && expected > 0 {
+                        let wait_started = Instant::now();
+                        let mut attempt = 0u32;
                         loop {
+                            attempt += 1;
                             if let Ok(Some(db_receipts)) =
                                 ctx.provider().receipts_by_block(block.hash().into())
                             {
@@ -296,26 +305,37 @@ where
                                     hdr.number(), hdr.gas_used(), &txs_in_block, &db_receipts, "db",
                                 ) {
                                     eprintln!(
-                                        "[worldchain-exex] receipts_ready block={} source=db",
-                                        hdr.number()
+                                        "[worldchain-exex] receipts_ready block={} source=db attempts={}",
+                                        hdr.number(), attempt
                                     );
                                     local_receipts = db_receipts;
                                     break;
                                 }
                             }
+                            if attempt >= RECEIPT_WAIT_ATTEMPTS {
+                                eprintln!(
+                                    "[worldchain-exex] receipts_timeout block={} hash=0x{} attempts={} waited_ms={} — no valid DB receipts; falling back to skip",
+                                    hdr.number(),
+                                    hex::encode(block.hash()),
+                                    attempt,
+                                    wait_started.elapsed().as_millis()
+                                );
+                                break;
+                            }
                             eprintln!(
-                                "[worldchain-exex] wait_receipts block={} source=db",
-                                hdr.number()
+                                "[worldchain-exex] wait_receipts block={} source=db attempt={}/{}",
+                                hdr.number(), attempt, RECEIPT_WAIT_ATTEMPTS
                             );
-                            tokio::time::sleep(Duration::from_millis(200)).await;
+                            tokio::time::sleep(RECEIPT_WAIT_INTERVAL).await;
                         }
                     }
 
                     if !receipts_match_block(
                         hdr.number(), hdr.gas_used(), &txs_in_block, &local_receipts, "final",
                     ) && expected > 0 {
-                        // Phase-2 F2: still advance FinishedHeight so consensus does not stall;
-                        // tank will see a hole and enqueue raw heal (F5) rather than freezing ExEx.
+                        // Phase-2 F2: still advance FinishedHeight so the ExEx does not stall. No
+                        // notification is sent for this block, so it becomes eligible for the existing
+                        // tank-engine gap/heal path (F5); this code does not confirm that it is healed.
                         eprintln!(
                             "[worldchain-exex] skip block={} hash=0x{} receipts_invalid — emitting FinishedHeight",
                             hdr.number(), hex::encode(block.hash())

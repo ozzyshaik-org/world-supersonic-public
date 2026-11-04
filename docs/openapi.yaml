@@ -108,6 +108,8 @@ paths:
           description: Invalid Address Length or Malformed Specification
         '429':
           description: Too Many Requests
+        '500':
+          description: Internal Database Lookup Failure (never reported as a zero balance)
   /v1/transactions:
     get:
       summary: Get User Transaction History

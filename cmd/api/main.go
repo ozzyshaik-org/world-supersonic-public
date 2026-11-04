@@ -14,6 +14,7 @@ import (
 "fmt"
 "log"
 "net/http"
+"strconv"
 "sync"
 "time"
 
@@ -34,9 +35,22 @@ db           *sql.DB
 apiKeysCache = make(map[string]*APIKey)
 cacheMutex   sync.RWMutex
 
-// Thread-safe client connection matrix for RAM fan-out broadcast operations
-clients   = make(map[*websocket.Conn]chan map[string]interface{})
+// Connected /ws clients and the queue each client's handler writes from. Only broadcastToClients sends on these
+// channels and only handleWS removes entries, both under clientsMu, so nothing is ever sent on a channel after its
+// client is unregistered. The channels are never closed; an unregistered one is garbage-collected.
+clients   = make(map[*websocket.Conn]chan []byte)
 clientsMu sync.Mutex
+)
+
+const (
+	// wsClientBuffer is how many payloads are queued per /ws client; while its queue is full, new payloads skip it.
+	wsClientBuffer = 50
+	// wsWriteTimeout bounds one write to a /ws client; a client that cannot take a payload in time is disconnected.
+	wsWriteTimeout = 10 * time.Second
+	// keysHash is the Valkey hash Gatekeeper reads: field = API key, value = its requests per second.
+	keysHash = "api:keys"
+	// keySyncBatch is the number of keys written per HSET while the replacement hash is built.
+	keySyncBatch = 500
 )
 
 
@@ -53,27 +67,114 @@ rateLimitRejections = promauto.NewCounter(prometheus.CounterOpts{
 Name: "supersonic_rate_limit_rejections_total",
 Help: "Total number of incoming requests blocked and dropped by the atomic Lua window script.",
 })
+wsDroppedPayloads = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "supersonic_ws_dropped_payloads_total",
+	Help: "Aggregator payloads not queued for a /ws client because that client's queue was full (slow client).",
+})
 )
 
+// syncKeys mirrors the active API keys from ClickHouse into the Valkey hash api:keys that Gatekeeper reads, every
+// 10 s. A pass that fails changes nothing, so the previous hash stays in place (see syncKeysOnce).
 func syncKeys() {
-for {
-ctxSync, cancelSync := context.WithTimeout(context.Background(), 5*time.Second)
-	rows, err := db.QueryContext(ctxSync, "SELECT api_key, requests_per_second FROM worldchain.api_keys WHERE is_active = 1")
-	defer cancelSync()
-if err == nil {
-if client := getValkeyClient(); client != nil {
-for rows.Next() {
-var key string
-var rps int
-if err := rows.Scan(&key, &rps); err == nil {
-_ = client.Do(context.Background(), client.B().Hset().Key("api:keys").FieldValue().FieldValue(key, fmt.Sprintf("%d", rps)).Build())
+	for {
+		if client := getValkeyClient(); client == nil {
+			log.Printf("API-SERVER warn: API key sync skipped: Valkey client unavailable")
+		} else if err := syncKeysOnce(db, client); err != nil {
+			log.Printf("API-SERVER warn: API key sync failed, previous %s hash kept: %v", keysHash, err)
+		}
+		time.Sleep(10 * time.Second)
+	}
 }
+
+// activeKey is one active row of worldchain.api_keys.
+type activeKey struct {
+	key string
+	rps int
 }
+
+// syncKeysOnce replaces api:keys with the complete set of active keys, or leaves it untouched. Valkey is only written
+// after the whole ClickHouse read succeeded (query, every row scan and the iteration). The replacement is built under
+// a temporary key and swapped in atomically, so a failure at any step keeps the previous hash. A successful read with
+// no active keys deletes api:keys, so Gatekeeper then refuses every key. The pass's context is cancelled on return.
+func syncKeysOnce(db *sql.DB, client rueidis.Client) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	keys, err := loadActiveKeys(ctx, db)
+	if err != nil {
+		return err
+	}
+	return replaceKeyHash(ctx, client, keys)
 }
-rows.Close()
+
+// loadActiveKeys reads every active key, or returns an error and no keys. FINAL is required: api_keys is a
+// ReplacingMergeTree, so a key revoked by inserting a newer row with is_active = 0 keeps its older active row until a
+// merge, and a plain WHERE is_active = 1 would still return it.
+func loadActiveKeys(ctx context.Context, db *sql.DB) ([]activeKey, error) {
+	rows, err := db.QueryContext(ctx, "SELECT api_key, requests_per_second FROM worldchain.api_keys FINAL WHERE is_active = 1")
+	if err != nil {
+		return nil, fmt.Errorf("query api_keys: %w", err)
+	}
+	defer rows.Close()
+	keys := make([]activeKey, 0)
+	for rows.Next() {
+		var k activeKey
+		if err := rows.Scan(&k.key, &k.rps); err != nil {
+			return nil, fmt.Errorf("scan api_keys row: %w", err)
+		}
+		keys = append(keys, k)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read api_keys: %w", err)
+	}
+	return keys, nil
 }
-time.Sleep(10 * time.Second)
-}
+
+// swapKeysScript renames the fully built temporary hash (KEYS[1]) over api:keys (KEYS[2]) and clears the expiry the
+// temporary key carried, as one atomic step.
+var swapKeysScript = rueidis.NewLuaScript(`
+redis.call("RENAME", KEYS[1], KEYS[2])
+redis.call("PERSIST", KEYS[2])
+return 1
+`)
+
+// replaceKeyHash makes api:keys hold exactly keys. If a write fails before the swap, it returns an error and api:keys
+// is unchanged. (If only the swap's reply is lost, the error is returned although api:keys already holds keys.)
+func replaceKeyHash(ctx context.Context, client rueidis.Client, keys []activeKey) error {
+	if len(keys) == 0 {
+		if err := client.Do(ctx, client.B().Del().Key(keysHash).Build()).Error(); err != nil {
+			return fmt.Errorf("delete %s: %w", keysHash, err)
+		}
+		return nil
+	}
+	tmp := fmt.Sprintf("%s:sync:%d:%d", keysHash, os.Getpid(), time.Now().UnixNano())
+	// Best-effort removal of a partly built temporary hash; its expiry removes it anyway if this fails too.
+	discard := func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cleanupCancel()
+		_ = client.Do(cleanupCtx, client.B().Del().Key(tmp).Build()).Error()
+	}
+	for start := 0; start < len(keys); start += keySyncBatch {
+		cmd := client.B().Hset().Key(tmp).FieldValue()
+		for _, k := range keys[start:min(start+keySyncBatch, len(keys))] {
+			cmd = cmd.FieldValue(k.key, strconv.Itoa(k.rps))
+		}
+		if err := client.Do(ctx, cmd.Build()).Error(); err != nil {
+			discard()
+			return fmt.Errorf("write %s: %w", tmp, err)
+		}
+		if start == 0 {
+			// A pass that dies from here on (process killed) leaves the temporary hash behind for 60 s at most.
+			if err := client.Do(ctx, client.B().Expire().Key(tmp).Seconds(60).Build()).Error(); err != nil {
+				discard()
+				return fmt.Errorf("expire %s: %w", tmp, err)
+			}
+		}
+	}
+	if err := swapKeysScript.Exec(ctx, client, []string{tmp, keysHash}, nil).Error(); err != nil {
+		discard()
+		return fmt.Errorf("swap %s into %s: %w", tmp, keysHash, err)
+	}
+	return nil
 }
 
 
@@ -142,6 +243,9 @@ _ = client.Do(context.Background(), cmd)
 }
 
 	sendToRustEdge(payload)
+	if data, err := json.Marshal(payload); err == nil {
+		broadcastToClients(data)
+	}
 
 time.Sleep(1 * time.Second)
 }
@@ -193,38 +297,63 @@ next(w, r)
 }
 
 
+// broadcastToClients queues one aggregator payload for every connected /ws client without blocking. A client whose
+// queue is full skips this payload (counted in supersonic_ws_dropped_payloads_total), so a slow client never delays
+// the aggregator or the other clients.
+func broadcastToClients(data []byte) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+	for _, queue := range clients {
+		select {
+		case queue <- data:
+		default:
+			wsDroppedPayloads.Inc()
+		}
+	}
+}
+
+// handleWS streams aggregator payloads to one client. The loop below is the connection's only writer. The reader
+// goroutine only reads (gorilla answers control frames through WriteControl, which is safe alongside the writer) and
+// closes done when the client goes away. Every exit unregisters the client, so no payload is queued for it any more,
+// and then closes the socket, which also ends the reader.
 func handleWS(w http.ResponseWriter, r *http.Request) {
-conn, err := upgrader.Upgrade(w, r, nil)
-if err != nil { return }
-defer conn.Close()
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
 
-// Register channel to collect centralized broadcast frames
-msgChan := make(chan map[string]interface{}, 50)
-clientsMu.Lock()
-clients[conn] = msgChan
-clientsMu.Unlock()
+	queue := make(chan []byte, wsClientBuffer)
+	clientsMu.Lock()
+	clients[conn] = queue
+	clientsMu.Unlock()
+	defer func() {
+		clientsMu.Lock()
+		delete(clients, conn)
+		clientsMu.Unlock()
+		_ = conn.Close()
+	}()
 
-defer func() {
-clientsMu.Lock()
-delete(clients, conn)
-clientsMu.Unlock()
-}()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, readErr := conn.ReadMessage(); readErr != nil {
+				return
+			}
+		}
+	}()
 
-// Asynchronous reader thread to catch socket closures immediately
-go func() {
-for {
-if _, _, readErr := conn.ReadMessage(); readErr != nil {
-return
-}
-}
-}()
-
-// Push real-time memory payloads downstream over the websocket connection
-for payload := range msgChan {
-if writeErr := conn.WriteJSON(payload); writeErr != nil {
-return
-}
-}
+	for {
+		select {
+		case <-done:
+			return
+		case data := <-queue:
+			_ = conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
+			if writeErr := conn.WriteMessage(websocket.TextMessage, data); writeErr != nil {
+				return
+			}
+		}
+	}
 }
 
 

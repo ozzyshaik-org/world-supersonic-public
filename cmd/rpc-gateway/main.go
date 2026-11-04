@@ -20,6 +20,7 @@ import (
 	"time"
 
 	ch "github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -677,13 +678,13 @@ func (g *RpcGateway) GetLatestBlockHandler(w http.ResponseWriter, r *http.Reques
 func (g *RpcGateway) GetAddressBalanceHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
-	address := r.URL.Query().Get("address")
-	if len(address) != 42 {
+	address, ok := normalizeAddress(r.URL.Query().Get("address"))
+	if !ok {
 		httpRequestsTotal.WithLabelValues("/v1/balance", "400").Inc()
-		http.Error(w, "Invalid address length", http.StatusBadRequest)
+		http.Error(w, "Malformed EVM Address Specification", http.StatusBadRequest)
 		return
 	}
-	cacheKey := fmt.Sprintf("worldchain:balance:%s", strings.ToLower(address))
+	cacheKey := fmt.Sprintf("worldchain:balance:%s", address)
 	cmd := g.cache.B().Get().Key(cacheKey).Cache()
 	resp := g.cache.DoCache(ctx, cmd, 3*time.Second)
 	if resp.Error() == nil {
@@ -697,10 +698,9 @@ func (g *RpcGateway) GetAddressBalanceHandler(w http.ResponseWriter, r *http.Req
 	}
 	shard := g.resolveShard(cacheKey)
 	sharedData, err, _ := shard.Do(cacheKey, func() (interface{}, error) {
-		var netBalance string
-		query := `SELECT toString(sum(balance_change)) FROM worldchain.api_token_balances WHERE wallet_address = ?`
-		if err := g.db.QueryRow(ctx, query, address).Scan(&netBalance); err != nil {
-			return "0", nil
+		netBalance, err := queryNetBalance(ctx, g.db, address)
+		if err != nil {
+			return nil, err
 		}
 		go func(key, val string) {
 			setCtx, setCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -710,8 +710,9 @@ func (g *RpcGateway) GetAddressBalanceHandler(w http.ResponseWriter, r *http.Req
 		return netBalance, nil
 	})
 	if err != nil {
+		log.Printf("❌ Database Exception: %v", err)
 		httpRequestsTotal.WithLabelValues("/v1/balance", "500").Inc()
-		http.Error(w, "Query execution exception", http.StatusInternalServerError)
+		http.Error(w, "Internal Database Lookup Failure", http.StatusInternalServerError)
 		return
 	}
 	cacheLookupTotal.WithLabelValues("SHARDED-MISS-REPAIRED").Inc()
@@ -1519,4 +1520,30 @@ func (g *RpcGateway) GetSystemHealthHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	w.Write(sharedData.([]byte))
+}
+
+// normalizeAddress trims raw and returns it lowercased when it is 0x followed by exactly 40 hex digits. Addresses are
+// stored lowercase, so a checksummed (mixed-case) address must be lowercased before the cache lookup and the query.
+func normalizeAddress(raw string) (string, bool) {
+	addr := strings.TrimSpace(raw)
+	if !addressRegex.MatchString(addr) {
+		return "", false
+	}
+	return strings.ToLower(addr), true
+}
+
+// rowQuerier is the part of the ClickHouse connection queryNetBalance uses; ch.Conn satisfies it.
+type rowQuerier interface {
+	QueryRow(ctx context.Context, query string, args ...any) driver.Row
+}
+
+// queryNetBalance returns toString(sum(balance_change)) from api_token_balances for a lowercase address (an address
+// with no rows sums to "0"). A database error is returned as an error, never as a zero balance.
+func queryNetBalance(ctx context.Context, db rowQuerier, address string) (string, error) {
+	var netBalance string
+	query := `SELECT toString(sum(balance_change)) FROM worldchain.api_token_balances WHERE wallet_address = ?`
+	if err := db.QueryRow(ctx, query, address).Scan(&netBalance); err != nil {
+		return "", err
+	}
+	return netBalance, nil
 }
