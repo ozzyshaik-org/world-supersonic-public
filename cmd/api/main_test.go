@@ -398,3 +398,76 @@ func TestBroadcastSkipsSlowClient(t *testing.T) {
 		t.Fatalf("other client received %q, %v; want the payload despite the slow client", msg, err)
 	}
 }
+
+// ── Fix 3: address normalization on the contract routes ──────────────────────────────────────────────────────────
+
+const (
+	checksummed = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+	lowercased  = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+)
+
+func contractMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/contracts/{address}", handleGetContract)
+	mux.HandleFunc("GET /v1/contracts/{address}/source", handleContractSource)
+	mux.HandleFunc("GET /v1/contracts/{address}/cfg", handleContractCFG)
+	mux.HandleFunc("GET /v1/contracts/{address}/cfg/raw", handleContractCFGRaw)
+	mux.HandleFunc("GET /v1/contracts/{address}/functions", handleContractFunctions)
+	mux.HandleFunc("GET /v1/contracts/{address}/interactions", handleContractInteractions)
+	mux.HandleFunc("GET /v1/contracts/{address}/balance-sheet", handleContractBalanceSheet)
+	mux.HandleFunc("GET /v1/contracts/{address}/gas", handleContractGas)
+	mux.HandleFunc("GET /v1/contracts/{address}/risk-simulation", handleContractRiskSimulation)
+	return mux
+}
+
+var contractRoutes = []string{"", "/source", "/cfg", "/cfg/raw", "/functions", "/interactions", "/balance-sheet", "/gas", "/risk-simulation"}
+
+func TestContractRoutesLowercaseAddresses(t *testing.T) {
+	saved := db
+	defer func() { db = saved }()
+	mux := contractMux()
+
+	for _, input := range []string{checksummed, lowercased, "%20" + checksummed + "%20"} {
+		for _, route := range contractRoutes {
+			f := &fakeDB{} // no rows: the handlers answer 404 or an empty list
+			db = openFakeDB(t, f)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/contracts/"+input+route, nil))
+			if rec.Code == http.StatusBadRequest {
+				t.Fatalf("%s%s: 400 for a valid address", input, route)
+			}
+			_, args := f.recorded()
+			if len(args) == 0 {
+				t.Fatalf("%s%s: no database query", input, route)
+			}
+			for _, call := range args {
+				for _, a := range call {
+					if s, ok := a.(string); ok && strings.HasPrefix(strings.ToLower(s), "0x") && s != lowercased {
+						t.Fatalf("%s%s: queried with address %q; want %q", input, route, s, lowercased)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestContractRoutesRejectMalformedAddresses(t *testing.T) {
+	saved := db
+	defer func() { db = saved }()
+	mux := contractMux()
+
+	for _, input := range []string{"0x123", lowercased + "0", "0xzz8da6bf26964af9d7eed9e03e53415d37aa9604", "vitalik.eth"} {
+		for _, route := range contractRoutes {
+			f := &fakeDB{}
+			db = openFakeDB(t, f)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/contracts/"+input+route, nil))
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("%s%s: status %d; want 400", input, route, rec.Code)
+			}
+			if _, args := f.recorded(); len(args) != 0 {
+				t.Fatalf("%s%s: %d database queries for a malformed address; want none", input, route, len(args))
+			}
+		}
+	}
+}

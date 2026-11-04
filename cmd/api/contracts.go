@@ -258,8 +258,8 @@ type contractDetail struct {
 }
 
 func handleGetContract(w http.ResponseWriter, r *http.Request) {
-addr := strings.ToLower(r.PathValue("address"))
-if !validateAddress(w, addr) {
+addr, ok := pathAddress(w, r)
+if !ok {
 return
 }
 
@@ -343,8 +343,8 @@ type contractSource struct {
 }
 
 func handleContractSource(w http.ResponseWriter, r *http.Request) {
-	addr := r.PathValue("address")
-	if !validateAddress(w, addr) {
+	addr, ok := pathAddress(w, r)
+	if !ok {
 		return
 	}
 
@@ -396,8 +396,8 @@ type contractCFG struct {
 }
 
 func handleContractCFG(w http.ResponseWriter, r *http.Request) {
-	addr := r.PathValue("address")
-	if !validateAddress(w, addr) {
+	addr, ok := pathAddress(w, r)
+	if !ok {
 		return
 	}
 
@@ -451,8 +451,8 @@ type contractFunction struct {
 }
 
 func handleContractFunctions(w http.ResponseWriter, r *http.Request) {
-	addr := r.PathValue("address")
-	if !validateAddress(w, addr) {
+	addr, ok := pathAddress(w, r)
+	if !ok {
 		return
 	}
 
@@ -518,8 +518,8 @@ type contractInteraction struct {
 }
 
 func handleContractInteractions(w http.ResponseWriter, r *http.Request) {
-	addr := r.PathValue("address")
-	if !validateAddress(w, addr) {
+	addr, ok := pathAddress(w, r)
+	if !ok {
 		return
 	}
 
@@ -661,8 +661,8 @@ type tokenBalance struct {
 }
 
 func handleContractBalanceSheet(w http.ResponseWriter, r *http.Request) {
-	addr := r.PathValue("address")
-	if !validateAddress(w, addr) {
+	addr, ok := pathAddress(w, r)
+	if !ok {
 		return
 	}
 
@@ -971,8 +971,8 @@ type gasUsage struct {
 }
 
 func handleContractGas(w http.ResponseWriter, r *http.Request) {
-	addr := r.PathValue("address")
-	if !validateAddress(w, addr) {
+	addr, ok := pathAddress(w, r)
+	if !ok {
 		return
 	}
 
@@ -1109,8 +1109,8 @@ func getIndividualRisk(ctx context.Context, address string) contractRiskInfo {
 }
 
 func handleContractRiskSimulation(w http.ResponseWriter, r *http.Request) {
-	addr := r.PathValue("address")
-	if !validateAddress(w, addr) {
+	addr, ok := pathAddress(w, r)
+	if !ok {
 		return
 	}
 
@@ -1258,8 +1258,8 @@ func handleContractRiskSimulation(w http.ResponseWriter, r *http.Request) {
 
 // handleContractCFGRaw serves the raw Graphviz .dot string for direct frontend rendering
 func handleContractCFGRaw(w http.ResponseWriter, r *http.Request) {
-addr := r.PathValue("address")
-if !validateAddress(w, addr) {
+addr, ok := pathAddress(w, r)
+if !ok {
 return
 }
 
@@ -1476,4 +1476,15 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(res)
+}
+
+// pathAddress returns the {address} path value trimmed and lowercased. When it is not 0x followed by exactly 40 hex
+// digits it writes 400 and returns false. Addresses are stored lowercase, so a checksummed (mixed-case) address must be
+// lowercased before any query or cache lookup; transaction hashes and other identifiers are not touched here.
+func pathAddress(w http.ResponseWriter, r *http.Request) (string, bool) {
+	addr := strings.TrimSpace(r.PathValue("address"))
+	if !validateAddress(w, addr) {
+		return "", false
+	}
+	return strings.ToLower(addr), true
 }

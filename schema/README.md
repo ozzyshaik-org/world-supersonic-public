@@ -28,30 +28,30 @@ public sources cannot define.
 
 | Table | Referenced in |
 |---|---|
-| `world_blocks` | `cmd/rpc-gateway/main.go`:650,1480<br>`cmd/api/contracts.go`:1428<br>`sgip/main.py`:602<br>`mev-detector/mev_detector.py`:10,118,205,219 |
-| `world_transactions` | `cmd/rpc-gateway/main.go`:591<br>`sgip/main.py`:220,485<br>`mev-detector/mev_detector.py`:223,338,362,401,451 |
+| `world_blocks` | `cmd/rpc-gateway/main.go`:651,1481<br>`cmd/api/contracts.go`:1428<br>`sgip/main.py`:602<br>`mev-detector/mev_detector.py`:10,118,205,219 |
+| `world_transactions` | `cmd/rpc-gateway/main.go`:592<br>`sgip/main.py`:220,485<br>`mev-detector/mev_detector.py`:223,338,362,401,451 |
 | `world_logs` | `mev-detector/mev_detector.py`:450<br>`mev-detector/mev_enrich.py`:31 |
 | `world_traces` | `sgip/main.py`:277,598<br>`mev-detector/mev_detector.py`:227,400 |
-| `world_token_transfers` | `cmd/rpc-gateway/main.go`:781,784,787 |
+| `world_token_transfers` | `cmd/rpc-gateway/main.go`:782,785,788 |
 | `world_address_labels` | `sgip/main.py`:97,156 |
 | `world_abi_signatures` | `sgip/main.py`:111 |
 | `world_contracts` | `cmd/api/contracts.go`:187,286,364,417,1079,1283<br>`sgip/main.py`:145,552,599,600 |
 | `world_contract_interactions` | `cmd/api/contracts.go`:543,1179,1187<br>`sgip/main.py`:181,373,386,601 |
 | `world_contract_functions` | `cmd/api/contracts.go`:474 |
-| `world_mev_activity` | `cmd/rpc-gateway/main.go`:1087,1090,1093,1096<br>`cmd/api/contracts.go`:622<br>`mev-detector/mev_detector.py`:124,310,555 |
+| `world_mev_activity` | `cmd/rpc-gateway/main.go`:1088,1091,1094,1097<br>`cmd/api/contracts.go`:622<br>`mev-detector/mev_detector.py`:124,310,555 |
 | `world_mev_hourly_stats` | `sgip/main.py`:627 |
 | `world_trace_gaps` | `mev-detector/mev_detector.py`:12,248,252 |
 | `world_sequence_gaps` | `mev-detector/mev_detector.py`:12,246,250 |
 | `ingest_checkpoints` | `mev-detector/mev_detector.py`:18,107,143,145,160,166,172 |
 | `latest_oracle_prices` | `mev-detector/mev_enrich.py`:24 |
-| `api_keys` | `cmd/rpc-gateway/main.go`:1300,1340<br>`cmd/api/main.go`:113 |
+| `api_keys` | `cmd/rpc-gateway/main.go`:1301,1341<br>`cmd/api/main.go`:113 |
 | `api_depeg_drift` | `cmd/api/contracts.go`:1348 |
-| `api_dex_swaps` | `cmd/rpc-gateway/main.go`:891,894,897<br>`cmd/api/main.go`:202 |
+| `api_dex_swaps` | `cmd/rpc-gateway/main.go`:892,895,898<br>`cmd/api/main.go`:202 |
 | `api_gas_by_function` | `cmd/api/contracts.go`:994 |
 | `api_morpho_activity` | `cmd/api/main.go`:212 |
 | `api_nft_transfers` | `cmd/api/main.go`:222 |
-| `api_token_balances` | `cmd/rpc-gateway/main.go`:701,1187<br>`cmd/api/contracts.go`:682 |
-| `api_universal_defi_events` | `cmd/rpc-gateway/main.go`:995,998,1001 |
+| `api_token_balances` | `cmd/rpc-gateway/main.go`:1188,1544<br>`cmd/api/contracts.go`:682 |
+| `api_universal_defi_events` | `cmd/rpc-gateway/main.go`:996,999,1002 |
 
 ## What this does and does not give you
 
