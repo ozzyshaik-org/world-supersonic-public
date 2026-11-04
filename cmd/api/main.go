@@ -35,12 +35,18 @@ db           *sql.DB
 apiKeysCache = make(map[string]*APIKey)
 cacheMutex   sync.RWMutex
 
-// Thread-safe client connection matrix for RAM fan-out broadcast operations
-clients   = make(map[*websocket.Conn]chan map[string]interface{})
+// Connected /ws clients and the queue each client's handler writes from. Only broadcastToClients sends on these
+// channels and only handleWS removes entries, both under clientsMu, so nothing is ever sent on a channel after its
+// client is unregistered. The channels are never closed; an unregistered one is garbage-collected.
+clients   = make(map[*websocket.Conn]chan []byte)
 clientsMu sync.Mutex
 )
 
 const (
+	// wsClientBuffer is how many payloads are queued per /ws client; while its queue is full, new payloads skip it.
+	wsClientBuffer = 50
+	// wsWriteTimeout bounds one write to a /ws client; a client that cannot take a payload in time is disconnected.
+	wsWriteTimeout = 10 * time.Second
 	// keysHash is the Valkey hash Gatekeeper reads: field = API key, value = its requests per second.
 	keysHash = "api:keys"
 	// keySyncBatch is the number of keys written per HSET while the replacement hash is built.
@@ -60,6 +66,10 @@ Help: "Total number of cache misses requiring a read-through fallback to ClickHo
 rateLimitRejections = promauto.NewCounter(prometheus.CounterOpts{
 Name: "supersonic_rate_limit_rejections_total",
 Help: "Total number of incoming requests blocked and dropped by the atomic Lua window script.",
+})
+wsDroppedPayloads = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "supersonic_ws_dropped_payloads_total",
+	Help: "Aggregator payloads not queued for a /ws client because that client's queue was full (slow client).",
 })
 )
 
@@ -233,6 +243,9 @@ _ = client.Do(context.Background(), cmd)
 }
 
 	sendToRustEdge(payload)
+	if data, err := json.Marshal(payload); err == nil {
+		broadcastToClients(data)
+	}
 
 time.Sleep(1 * time.Second)
 }
@@ -284,38 +297,63 @@ next(w, r)
 }
 
 
+// broadcastToClients queues one aggregator payload for every connected /ws client without blocking. A client whose
+// queue is full skips this payload (counted in supersonic_ws_dropped_payloads_total), so a slow client never delays
+// the aggregator or the other clients.
+func broadcastToClients(data []byte) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+	for _, queue := range clients {
+		select {
+		case queue <- data:
+		default:
+			wsDroppedPayloads.Inc()
+		}
+	}
+}
+
+// handleWS streams aggregator payloads to one client. The loop below is the connection's only writer. The reader
+// goroutine only reads (gorilla answers control frames through WriteControl, which is safe alongside the writer) and
+// closes done when the client goes away. Every exit unregisters the client, so no payload is queued for it any more,
+// and then closes the socket, which also ends the reader.
 func handleWS(w http.ResponseWriter, r *http.Request) {
-conn, err := upgrader.Upgrade(w, r, nil)
-if err != nil { return }
-defer conn.Close()
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
 
-// Register channel to collect centralized broadcast frames
-msgChan := make(chan map[string]interface{}, 50)
-clientsMu.Lock()
-clients[conn] = msgChan
-clientsMu.Unlock()
+	queue := make(chan []byte, wsClientBuffer)
+	clientsMu.Lock()
+	clients[conn] = queue
+	clientsMu.Unlock()
+	defer func() {
+		clientsMu.Lock()
+		delete(clients, conn)
+		clientsMu.Unlock()
+		_ = conn.Close()
+	}()
 
-defer func() {
-clientsMu.Lock()
-delete(clients, conn)
-clientsMu.Unlock()
-}()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, readErr := conn.ReadMessage(); readErr != nil {
+				return
+			}
+		}
+	}()
 
-// Asynchronous reader thread to catch socket closures immediately
-go func() {
-for {
-if _, _, readErr := conn.ReadMessage(); readErr != nil {
-return
-}
-}
-}()
-
-// Push real-time memory payloads downstream over the websocket connection
-for payload := range msgChan {
-if writeErr := conn.WriteJSON(payload); writeErr != nil {
-return
-}
-}
+	for {
+		select {
+		case <-done:
+			return
+		case data := <-queue:
+			_ = conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
+			if writeErr := conn.WriteMessage(websocket.TextMessage, data); writeErr != nil {
+				return
+			}
+		}
+	}
 }
 
 

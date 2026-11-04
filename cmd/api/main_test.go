@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"strings"
@@ -15,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/redis/rueidis"
 )
 
@@ -293,5 +297,104 @@ func TestSyncKeysOnce(t *testing.T) {
 	}
 	if n, err := client.Do(ctx, client.B().Exists().Key(keysHash).Build()).AsInt64(); err != nil || n != 0 {
 		t.Fatalf("api:keys exists = %d, %v after a read with no active keys; want deleted", n, err)
+	}
+}
+
+// ── Fix 2: /ws fan-out ────────────────────────────────────────────────────────────────────────────────────────────
+
+func clientCount() int {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+	return len(clients)
+}
+
+func waitClients(t *testing.T, want int) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for clientCount() != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d registered /ws clients; want %d", clientCount(), want)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func dialWS(t *testing.T, srv *httptest.Server) *websocket.Conn {
+	t.Helper()
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return conn
+}
+
+func droppedPayloads(t *testing.T) float64 {
+	t.Helper()
+	var m dto.Metric
+	if err := wsDroppedPayloads.Write(&m); err != nil {
+		t.Fatal(err)
+	}
+	return m.GetCounter().GetValue()
+}
+
+func TestWSReceivesBroadcastAndUnregistersOnDisconnect(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(handleWS))
+	defer srv.Close()
+	base := clientCount()
+
+	conn := dialWS(t, srv)
+	waitClients(t, base+1)
+
+	broadcastToClients([]byte(`{"type":"heartbeat"}`))
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, msg, err := conn.ReadMessage()
+	if err != nil || string(msg) != `{"type":"heartbeat"}` {
+		t.Fatalf("client received %q, %v; want the broadcast payload", msg, err)
+	}
+
+	// The client goes away while its handler is idle: the handler must notice, unregister and return.
+	conn.Close()
+	waitClients(t, base)
+}
+
+func TestBroadcastSkipsSlowClient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(handleWS))
+	defer srv.Close()
+	base := clientCount()
+
+	fast := dialWS(t, srv)
+	defer fast.Close()
+	waitClients(t, base+1)
+
+	// A client whose queue is already full.
+	slow := new(websocket.Conn)
+	full := make(chan []byte, 1)
+	full <- []byte("unread")
+	clientsMu.Lock()
+	clients[slow] = full
+	clientsMu.Unlock()
+	defer func() {
+		clientsMu.Lock()
+		delete(clients, slow)
+		clientsMu.Unlock()
+	}()
+
+	before := droppedPayloads(t)
+	done := make(chan struct{})
+	go func() {
+		broadcastToClients([]byte(`{"type":"multi_stream"}`))
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("broadcastToClients blocked on a client with a full queue")
+	}
+	if got := droppedPayloads(t) - before; got != 1 {
+		t.Fatalf("dropped payloads +%v; want +1 for the slow client", got)
+	}
+	_ = fast.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if _, msg, err := fast.ReadMessage(); err != nil || string(msg) != `{"type":"multi_stream"}` {
+		t.Fatalf("other client received %q, %v; want the payload despite the slow client", msg, err)
 	}
 }
