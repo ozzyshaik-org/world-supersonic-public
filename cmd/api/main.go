@@ -71,6 +71,10 @@ wsDroppedPayloads = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "supersonic_ws_dropped_payloads_total",
 	Help: "Aggregator payloads not queued for a /ws client because that client's queue was full (slow client).",
 })
+gatekeeperUnavailableTotal = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "supersonic_gatekeeper_unavailable_total",
+	Help: "/ws requests refused with 503 because the API key and rate-limit check could not run (Valkey unavailable).",
+})
 )
 
 // syncKeys mirrors the active API keys from ClickHouse into the Valkey hash api:keys that Gatekeeper reads, every
@@ -251,6 +255,12 @@ time.Sleep(1 * time.Second)
 }
 }
 
+// gatekeeperRetryAfter is the Retry-After (seconds) sent while the key and rate-limit check cannot run.
+const gatekeeperRetryAfter = "5"
+
+// Gatekeeper admits a request only when its api_key passes the key and rate-limit check in Valkey. It fails closed:
+// a missing key gets 401, an unknown or revoked key (absent from api:keys) 401, a key over its limit 429, and a request
+// whose check cannot run (no Valkey client, or the check script fails) 503 with Retry-After instead of passing through.
 func Gatekeeper(next http.HandlerFunc) http.HandlerFunc {
 return func(w http.ResponseWriter, r *http.Request) {
 key := r.URL.Query().Get("api_key")
@@ -261,7 +271,7 @@ return
 
 client := getValkeyClient()
 if client == nil {
-next(w, r)
+gatekeeperUnavailable(w)
 return
 }
 
@@ -279,7 +289,7 @@ return 1
 
 res, err := luaScript.Exec(r.Context(), client, []string{ratelimitKey}, []string{key}).ToInt64()
 if err != nil {
-next(w, r)
+gatekeeperUnavailable(w)
 return
 }
 
@@ -294,6 +304,13 @@ return
 
 next(w, r)
 }
+}
+
+// gatekeeperUnavailable refuses a request whose key and rate-limit check could not run.
+func gatekeeperUnavailable(w http.ResponseWriter) {
+	gatekeeperUnavailableTotal.Inc()
+	w.Header().Set("Retry-After", gatekeeperRetryAfter)
+	http.Error(w, "Service Unavailable: API key check unavailable", http.StatusServiceUnavailable)
 }
 
 

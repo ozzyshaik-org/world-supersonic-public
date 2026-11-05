@@ -8,7 +8,9 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"log"
@@ -1325,10 +1327,12 @@ func (g *RpcGateway) ProvisionApiKeyHandler(w http.ResponseWriter, r *http.Reque
 	w.Write(marshaled)
 }
 
+// GetApiKeyInfo returns an active key's record, from the cache (kept apiKeyCacheTTL) or from ClickHouse. A key that
+// does not exist or is inactive returns sql.ErrNoRows; any other error means the lookup itself failed.
 func (g *RpcGateway) GetApiKeyInfo(ctx context.Context, apiKey string) (*ApiKeyInfo, error) {
 	cacheKey := fmt.Sprintf("worldchain:apikey:%s", apiKey)
 	cmd := g.cache.B().Get().Key(cacheKey).Cache()
-	resp := g.cache.DoCache(ctx, cmd, 60*time.Second)
+	resp := g.cache.DoCache(ctx, cmd, apiKeyCacheTTL)
 	if resp.Error() == nil {
 		val, _ := resp.ToString()
 		var ki ApiKeyInfo
@@ -1337,9 +1341,8 @@ func (g *RpcGateway) GetApiKeyInfo(ctx context.Context, apiKey string) (*ApiKeyI
 		}
 	}
 
-	var ki ApiKeyInfo
-	query := `SELECT api_key, client_name, tier, requests_per_second, is_active, created_at FROM worldchain.api_keys WHERE api_key = ? AND is_active = 1 LIMIT 1`
-	if err := g.db.QueryRow(ctx, query, apiKey).Scan(&ki.ApiKey, &ki.ClientName, &ki.Tier, &ki.RequestsPerSecond, &ki.IsActive, &ki.CreatedAt); err != nil {
+	ki, err := lookupApiKey(ctx, g.db, apiKey)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1347,10 +1350,10 @@ func (g *RpcGateway) GetApiKeyInfo(ctx context.Context, apiKey string) (*ApiKeyI
 	go func(key, data string) {
 		setCtx, setCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer setCancel()
-		_ = g.cache.Do(setCtx, g.cache.B().Set().Key(key).Value(data).Ex(60*time.Second).Build())
+		_ = g.cache.Do(setCtx, g.cache.B().Set().Key(key).Value(data).Ex(apiKeyCacheTTL).Build())
 	}(cacheKey, string(marshaled))
 
-	return &ki, nil
+	return ki, nil
 }
 
 func (g *RpcGateway) ApiKeyAuthAndRateLimitMiddleware(next http.Handler) http.Handler {
@@ -1397,6 +1400,16 @@ func (g *RpcGateway) ApiKeyAuthAndRateLimitMiddleware(next http.Handler) http.Ha
 			ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
 			ki, err := g.GetApiKeyInfo(ctx, clientKey)
 			cancel()
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				// The lookup failed (ClickHouse unavailable, timeout): no evidence the key is invalid, so not a 401.
+				log.Printf("❌ API key lookup failed: %v", err)
+				httpRequestsTotal.WithLabelValues("middleware", "503").Inc()
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Retry-After", "5")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				w.Write([]byte(`{"status":503,"error":"Service Unavailable","message":"API key lookup failed; retry later"}`))
+				return
+			}
 			if err != nil || ki == nil || ki.IsActive != 1 {
 				httpRequestsTotal.WithLabelValues("middleware", "401").Inc()
 				w.Header().Set("Content-Type", "application/json")
@@ -1546,4 +1559,21 @@ func queryNetBalance(ctx context.Context, db rowQuerier, address string) (string
 		return "", err
 	}
 	return netBalance, nil
+}
+
+// apiKeyCacheTTL is how long a looked-up API key record is cached, both in Valkey and in the client-side cache. It
+// bounds how long a revoked key can still be served from the cache, and matches cmd/api's 10 s key sync. Whole seconds
+// only: the Valkey entry is written with EX. (A variable only so tests can shorten it.)
+var apiKeyCacheTTL = 10 * time.Second
+
+// lookupApiKey reads one active API key with FINAL. api_keys is a ReplacingMergeTree: a key revoked by inserting a newer
+// row with is_active = 0 keeps its older active row until a merge, and without FINAL that row would still match. A key
+// that does not exist or is inactive returns sql.ErrNoRows.
+func lookupApiKey(ctx context.Context, db rowQuerier, apiKey string) (*ApiKeyInfo, error) {
+	var ki ApiKeyInfo
+	query := `SELECT api_key, client_name, tier, requests_per_second, is_active, created_at FROM worldchain.api_keys FINAL WHERE api_key = ? AND is_active = 1 LIMIT 1`
+	if err := db.QueryRow(ctx, query, apiKey).Scan(&ki.ApiKey, &ki.ClientName, &ki.Tier, &ki.RequestsPerSecond, &ki.IsActive, &ki.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &ki, nil
 }
