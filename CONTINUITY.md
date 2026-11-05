@@ -73,6 +73,7 @@ any later commit reachable from the start tag is pre-existing too.
 | #17 | `2ed92ef` | 2026-10-30 16:43 | Docs: website URL recorded (`README.md`, `website/README.md`) |
 | #18 | `39e6c86` | 2026-11-05 01:50 | Existing-core fixes: API-key sync and `/ws` fan-out (`cmd/api`), address normalization (`cmd/api`, `cmd/rpc-gateway`), bounded ExEx DB-receipt wait (`exex/src/main.rs`), `go test` in CI; tests and docs |
 | #19 | `90d1108` | 2026-11-05 12:53 | Existing-core fixes: `/ws` Gatekeeper fails closed with throttled Valkey client retries (`cmd/api`); API-key lookups with `FINAL`, a 10 s key cache and 503 for failed lookups (`cmd/rpc-gateway`); tests and docs |
+| #20 | `56ad09a` | 2026-11-05 13:07 | CI: `redis-server` installed in the `go` job and Go tests run with `-v -count=1` (`.github/workflows/ci.yml`) |
 
 Every commit that will be reachable from the tag `ethglobal-mumbai-2026-start` (not yet created; see below) is pre-existing. The feature specs in
 `docs/hackathon/` are part of this pre-kickoff documentation. They are committed scope—specifications only, not yet implemented. They describe what will be
