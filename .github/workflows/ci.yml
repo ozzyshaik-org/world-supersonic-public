@@ -15,7 +15,17 @@ jobs:
           go-version-file: go.mod
       - run: go build ./cmd/...
       - run: go vet ./cmd/...
-      - run: go test ./cmd/...
+      # The redis-server-backed Go tests start their own redis-server on a free local port and skip without the
+      # binary. They check compatibility with redis-server only: not a real Valkey deployment, ClickHouse or an
+      # end-to-end system.
+      - name: Install redis-server for the redis-server-backed Go tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends redis-server
+          redis-server --version
+      # -v lists every test as RUN / PASS / SKIP, so the log shows whether those tests ran; -count=1 bypasses the
+      # test cache so they really run on every CI job.
+      - run: go test -v -count=1 ./cmd/...
 
   website:
     runs-on: ubuntu-latest
