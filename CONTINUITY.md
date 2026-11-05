@@ -16,7 +16,7 @@ public. The first commit here is the snapshot, not the start of the project.
 | Private development history | not public | Months of development of the full stack | Pre-existing |
 | Baseline snapshot | annotated tag `baseline-pre-ethglobal-mumbai` (commit `241af1f`, 24 Oct 2026) | Sanitized public snapshot of the full stack | Pre-existing |
 | Pre-kickoff commits | the commits listed below (24-25 Oct 2026), plus any other commit made before the start tag | The listed commits are documentation and CI only; later pre-start commits also include dependency, build, schema, CI, product/presentation (`website/`) and existing-core code changes and are recorded in the ledger below | Pre-existing |
-| Event work | commits after the annotated tag `ethglobal-mumbai-2026-start` | The committed features below | Hackathon work |
+| Event work | commits after the annotated tag `ethglobal-mumbai-2026-start` (tag object `7993c080fa47d3f15e584795fcb4bd59c0250012`, peeled commit `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`); under Corrected Variant B, merge commit `cb39dbb` is event-period administrative/documentation from PR #21, not an event-built feature | The committed features below, plus the administrative merge noted under Corrected Variant B | Hackathon work |
 
 ## Baseline (before the hackathon)
 
@@ -75,7 +75,24 @@ any later commit reachable from the start tag is pre-existing too.
 | #19 | `90d1108` | 2026-11-05 12:53 | Existing-core fixes: `/ws` Gatekeeper fails closed with throttled Valkey client retries (`cmd/api`); API-key lookups with `FINAL`, a 10 s key cache and 503 for failed lookups (`cmd/rpc-gateway`); tests and docs |
 | #20 | `56ad09a` | 2026-11-05 13:07 | CI: `redis-server` installed in the `go` job and Go tests run with `-v -count=1` (`.github/workflows/ci.yml`) |
 
-Every commit that will be reachable from the tag `ethglobal-mumbai-2026-start` (not yet created; see below) is pre-existing. The feature specs in
+### Corrected Variant B (PR #21 and the start tag)
+
+Official hacking start: **2026-11-05 21:00:00 IST**.
+
+Annotated start tag `ethglobal-mumbai-2026-start` exists on origin:
+- Tag object: `7993c080fa47d3f15e584795fcb4bd59c0250012`
+- Peeled commit: `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`
+- The tag must never be moved or backdated.
+
+**Corrected Variant B** applies:
+- PR #21's seven branch commits, `c65f36f` through `e4b6346`, were made before hacking began and remain pre-existing work (documentation and website wording; not listed as event-built features).
+- Only the merge commit `cb39dbb` (merged 2026-11-05 21:17 IST) is event-period administrative/documentation work from PR #21.
+- No part of PR #21 is claimed as an event-built feature.
+- Every other commit reachable from the start tag is pre-existing work.
+- Commits after the start tag are event work, subject to their actual content and timestamps.
+
+
+Every commit reachable from the tag `ethglobal-mumbai-2026-start`, other than the special case for merge commit `cb39dbb` under Corrected Variant B below, is pre-existing. The feature specs in
 `docs/hackathon/` are part of this pre-kickoff documentation. They are committed scope—specifications only, not yet implemented. They describe what will be
 built; the implementation is event work.
 
@@ -89,9 +106,11 @@ git log --oneline baseline-pre-ethglobal-mumbai..ethglobal-mumbai-2026-start
 
 ## Hackathon work (official kickoff on 5 Nov 2026)
 
-Immediately before event implementation begins, the then-current `main` is tagged with the annotated tag
-`ethglobal-mumbai-2026-start`, the tag is pushed, and its commit hash is recorded in `HACKATHON_LOG.md`. The tag does not
-exist yet. Event work is everything after that tag. History is never rewritten and the tags are never moved.
+Official hacking start: **2026-11-05 21:00:00 IST**. The annotated tag `ethglobal-mumbai-2026-start` (tag object
+`7993c080fa47d3f15e584795fcb4bd59c0250012`, peeled commit `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`) is on origin and is
+recorded in `HACKATHON_LOG.md`. The tag must never be moved or backdated. History is never rewritten. Under Corrected
+Variant B, merge commit `cb39dbb` is event-period administrative/documentation from PR #21; commits after the start tag
+are event work, subject to their actual content and timestamps.
 
 The committed scope—specifications only, not yet implemented—is four features, each with a definition of done, in scope order:
 
