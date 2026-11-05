@@ -4,9 +4,11 @@ Status: pre-start documentation, based on facts confirmed by the owner. Nothing 
 no per-file claims are made here.
 
 This file covers the baseline (everything up to the annotated tag `baseline-pre-ethglobal-mumbai` and the pre-kickoff
-changes merged before the event), as listed in [CONTINUITY.md](CONTINUITY.md). Baseline assistance and event assistance will be separated once the event begins:
-event work is everything after the annotated tag `ethglobal-mumbai-2026-start`, and its AI usage will be recorded separately
-from this baseline section. See [CONTINUITY.md](CONTINUITY.md) for the baseline/event split.
+changes merged before the event), as listed in [CONTINUITY.md](CONTINUITY.md). The annotated start tag
+`ethglobal-mumbai-2026-start` now exists (tag object `7993c080fa47d3f15e584795fcb4bd59c0250012`, peeled commit
+`cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`); it must never be moved or backdated. Baseline assistance and event assistance
+are separated: under Corrected Variant B, event-period entries begin with the administrative/documentation merge of PR #21
+and continue for commits after the start tag. See [CONTINUITY.md](CONTINUITY.md) for the baseline/event split.
 
 ## Confirmed facts
 
@@ -28,6 +30,8 @@ from this baseline section. See [CONTINUITY.md](CONTINUITY.md) for the baseline/
 - The `website/` product site, its Node content tests and documentation, and the accompanying website/Continuity/AI-provenance edits were drafted with AI assistance (Kimi) at the owner's direction. The pull request contains the public source and diff; this paragraph claims no human review, approval or merge. The website is pre-kickoff product/presentation work, not the Arc Studio event frontend or a partner integration. Its records are synthetic and its roadmap capabilities remain planned. No prompt or session transcript is published by this change.
 - PR #5 was an earlier documentation change drafted with AI assistance (Grok Bot, the owner's assistant). This file does not record a separate review of it beyond the statements above.
 - The existing-core corrections in PR #18 (API-key sync, `cmd/api` `/ws` fan-out, address normalization on `/v1/balance` and the `cmd/api` contract routes, a bounded ExEx DB-receipt wait, and `go test` in CI) and PR #19 (`cmd/api` `/ws` Gatekeeper failing closed with throttled Valkey client retries; `rpc-gateway` API-key lookups with `FINAL`, a 10 s key cache and 503 for failed lookups), each with its tests and documentation, and the CI-only change in PR #20 (installing `redis-server` in CI and running the Go tests verbosely), were drafted with AI assistance (Claude Code) at the owner's direction. PR #18 was merged normally at `39e6c86cf5e617b29b7e9eeab6a833c1564c21d9`, PR #19 at `90d11089f2b145e251db48edda6173a5a2f3f800` and PR #20 at `56ad09ad82640cef65a7909f4177548cd6a574dd`. This records drafting and the public merges, not an additional claim about human review, runtime verification or test results; each pull request contains its own diff and validation report. No prompt or session transcript is published by this change.
+- PR #21 (documentation and website wording: Continuity ledger updates, AI_USAGE/OpenAPI wording, website limits text, evidence IDK-07 correction after PR #19) was drafted with AI assistance (Claude Code) at the owner's direction. Its seven branch commits (`c65f36f` through `e4b6346`) were authored before the official hacking start (2026-11-05 21:00:00 IST) and remain pre-existing work under Corrected Variant B. Kimi (an AI agent) reviewed the public diff and checks. The owner authorized the merge; GitHub executed the merge from the owner's account at `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea` (2026-11-05 21:17 IST). This does **not** claim that the owner personally reviewed the code. Kimi's verification was limited to the public static site's HTTP response and the deployed JavaScript wording. No production API, live Valkey/ClickHouse, ExEx end-to-end runtime, or public-versus-production runtime-equivalence verification is claimed for PR #21. Under Corrected Variant B, only the merge commit is event-period administrative/documentation work; no part of PR #21 is claimed as an event-built feature. No prompt or session transcript is published by this change.
+- The annotated start tag `ethglobal-mumbai-2026-start` (tag object `7993c080fa47d3f15e584795fcb4bd59c0250012`, peeled commit `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`) was created by Claude (the tagger) and pushed by this assistant (Grok Bot) on the owner's explicit authorization. The tag must never be moved or backdated.
 
 ## Usage by area
 
@@ -94,6 +98,7 @@ Assets generated during the event (after the tag `ethglobal-mumbai-2026-start` e
 
 ## Baseline versus event assistance
 
-Baseline assistance (this file, as written before the event) and event assistance will be recorded separately once the event
-begins. Event entries will be added after the tag `ethglobal-mumbai-2026-start` exists and will not be backfilled into the
-baseline rows above.
+Baseline assistance remains the rows above for work before the official hacking start. Event assistance is recorded separately
+after the tag `ethglobal-mumbai-2026-start` exists and is not backfilled into the baseline area rows. Under Corrected Variant B,
+the first event-period AI-provenance note is the PR #21 merge authorization and limited Kimi static-site check above; further
+event entries will be appended as event work lands.
