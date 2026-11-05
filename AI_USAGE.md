@@ -4,7 +4,7 @@ Status: pre-start documentation, based on facts confirmed by the owner. Nothing 
 no per-file claims are made here.
 
 This file covers the baseline (everything up to the annotated tag `baseline-pre-ethglobal-mumbai` and the pre-kickoff
-changes merged before the event, listed in [CONTINUITY.md](CONTINUITY.md)). Baseline assistance and event assistance will be separated once the event begins:
+changes merged before the event), as listed in [CONTINUITY.md](CONTINUITY.md). Baseline assistance and event assistance will be separated once the event begins:
 event work is everything after the annotated tag `ethglobal-mumbai-2026-start`, and its AI usage will be recorded separately
 from this baseline section. See [CONTINUITY.md](CONTINUITY.md) for the baseline/event split.
 

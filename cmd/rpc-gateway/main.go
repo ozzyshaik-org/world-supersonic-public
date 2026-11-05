@@ -231,8 +231,8 @@ const openAPISpecJSON = `{
     },
     "/v1/balance": {
       "get": {
-        "summary": "Get EVM Address Balance",
-        "description": "Returns toString(sum(balance_change)) over the worldchain.api_token_balances rows whose wallet_address is the given address (lowercased), summed across every token contract in raw token units. It is not the native ETH balance in Wei.",
+        "summary": "Get Aggregate Token Balance-Change Sum",
+        "description": "Returns toString(sum(balance_change)) over the worldchain.api_token_balances rows whose wallet_address is the given address (lowercased), that is, the aggregate of the stored balance_change values across every token contract, in raw token units. It is neither the native ETH balance in Wei nor a per-token wallet balance.",
         "operationId": "getAddressBalance",
         "parameters": [
           {
