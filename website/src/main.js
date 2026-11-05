@@ -275,7 +275,7 @@ const stages = {
     kicker: 'PROGRAMMABLE ACCESS', title: 'Serve findings where agents can use them.',
     copy: 'The Go gateway exposes REST /v1 routes with API-key tiers and rate limits. The API and Rust edge services provide WebSocket access for recent derived activity.',
     output: 'REST /v1/* + WebSocket /ws',
-    boundary: 'Known limits are public, including Valkey fail-open behavior in cmd/api and the unauthenticated edge WebSocket. Do not treat them as hardened public endpoints.'
+    boundary: 'Known limits are public: the edge WebSocket is unauthenticated, and revoking an API key does not close cmd/api WebSocket connections that are already open. Do not treat them as hardened public endpoints.'
   },
   sgip: {
     kicker: 'INVESTIGATION SURFACE', title: 'Move from a row to its execution graph.',
