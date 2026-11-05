@@ -231,8 +231,8 @@ const openAPISpecJSON = `{
     },
     "/v1/balance": {
       "get": {
-        "summary": "Get EVM Address Balance",
-        "description": "Returns the net native balance in Wei for any valid 42-character EVM address.",
+        "summary": "Get Aggregate Token Balance-Change Sum",
+        "description": "Returns toString(sum(balance_change)) over the worldchain.api_token_balances rows whose wallet_address is the given address (lowercased), that is, the aggregate of the stored balance_change values across every token contract, in raw token units. It is neither the native ETH balance in Wei nor a per-token wallet balance.",
         "operationId": "getAddressBalance",
         "parameters": [
           {
@@ -245,8 +245,8 @@ const openAPISpecJSON = `{
         ],
         "responses": {
           "200": {
-            "description": "Native balance in Wei as string",
-            "content": { "text/plain": { "schema": { "type": "string" }, "example": "1500000000000000000" } }
+            "description": "Decimal string of that sum; 0 when the address has no rows",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
           },
           "400": { "description": "Invalid Address Length or Malformed Specification" },
           "429": { "description": "Too Many Requests" }

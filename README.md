@@ -59,7 +59,7 @@ See [`website/README.md`](website/README.md) for development and preview command
 
 ## ETHGlobal Mumbai 2026 (Continuity Track)
 
-This product direction is the planned extension for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated tag `baseline-pre-ethglobal-mumbai` plus every commit made before the start tag: documentation and CI, and also build, schema and lockfile work. Event work is everything after the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
+This product direction is the planned extension for the Continuity Track at ETHGlobal Mumbai (5-7 Nov 2026). Pre-existing work is the annotated tag `baseline-pre-ethglobal-mumbai` plus every commit made before the start tag: documentation and CI, and also build, schema, lockfile, product-website and existing-core code fixes (the merged pull requests are listed in [CONTINUITY.md](CONTINUITY.md)). Event work is everything after the annotated tag `ethglobal-mumbai-2026-start`, which is created immediately before event implementation begins. See [CONTINUITY.md](CONTINUITY.md) for the full split.
 
 **Open-source rule.** ETHGlobal's rules for Continuity-track submissions say: "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules), read 2026-10-27.) Every new part of the submitted extension remains public under the repository's open-source license. Credentials, private data and sensitive live-infrastructure details are redacted. No submitted feature or required implementation is hidden or misrepresented.
 

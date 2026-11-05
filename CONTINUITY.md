@@ -15,7 +15,7 @@ public. The first commit here is the snapshot, not the start of the project.
 |---|---|---|---|
 | Private development history | not public | Months of development of the full stack | Pre-existing |
 | Baseline snapshot | annotated tag `baseline-pre-ethglobal-mumbai` (commit `241af1f`, 24 Oct 2026) | Sanitized public snapshot of the full stack | Pre-existing |
-| Pre-kickoff commits | the commits listed below (24-25 Oct 2026), plus any other commit made before the start tag | The listed commits are documentation and CI only; later pre-start commits can include product/presentation work such as `website/` and are recorded here as they happen | Pre-existing |
+| Pre-kickoff commits | the commits listed below (24-25 Oct 2026), plus any other commit made before the start tag | The listed commits are documentation and CI only; later pre-start commits also include dependency, build, schema, CI, product/presentation (`website/`) and existing-core code changes and are recorded in the ledger below | Pre-existing |
 | Event work | commits after the annotated tag `ethglobal-mumbai-2026-start` | The committed features below | Hackathon work |
 
 ## Baseline (before the hackathon)
@@ -44,6 +44,36 @@ The seven listed commits touch Markdown files and one CI workflow only; no file 
 | `6895c50` | 2026-10-25 00:07 | nasiparveen006 | Update README.md |
 | `c22152a` | 2026-10-25 10:08 | ozzyshaik | README: link World ID and ENS feature specs |
 | `5419782` | 2026-10-25 10:39 | ozzyshaik | ci: build and vet Go services |
+
+### Pre-start pull requests merged after these commits
+
+After `5419782`, every change reached `main` through one of the pull requests below, each merged with a merge commit
+(first-parent history of `main`, in merge order). Unlike the seven commits above, several of them change code, build,
+schema, dependency or CI files. Open or unmerged pull requests are not listed. The catch-all rule below still applies:
+any later commit reachable from the start tag is pre-existing too.
+
+| PR | Merge commit | Merged (IST) | Scope |
+|---|---|---|---|
+| #3 | `3c2701d` | 2026-10-26 09:58 | Docs: Continuity baseline correction (`CONTINUITY.md`, `HACKATHON_LOG.md`, `README.md`) |
+| #4 | `b3d457b` | 2026-10-26 10:46 | Docs: specs 01–03 aligned with the selected scope (`docs/hackathon/`, `CONTINUITY.md`, `README.md`) |
+| #5 | `3eb2cec` | 2026-10-26 16:01 | Docs: new `AI_USAGE.md`, `EVIDENCE.md` and `DEMO_PLAN.md`; spec 01 and README edits |
+| #6 | `a1c0dc1` | 2026-10-27 19:00 | Docs: baseline readiness (`README.md`, `AI_USAGE.md`, `exex/README.md`) |
+| #7 | `df16b16` | 2026-10-27 19:48 | Build: committed `exex/Cargo.lock` (locked ExEx build); `exex/Cargo.toml` comment, `exex/README.md`, `README.md` |
+| #9 | `a94e39a` | 2026-10-27 20:19 | Schema: new `schema/quickstart_schema.sql` and `schema/README.md`; `README.md` |
+| #10 | `0972802` | 2026-10-27 21:31 | Docs: Agent Pass spec, stretch options and priority reorder (`docs/hackathon/`, `AI_USAGE.md`, `CONTINUITY.md`, `DEMO_PLAN.md`, `EVIDENCE.md`, `README.md`) |
+| #11 | `c3d58a5` | 2026-10-28 00:43 | Docs: specs 01, 03 and 04 hardened; `EVIDENCE.md` expanded; submission checklist and AI artifact plan added |
+| #12 | `a0a3a35` | 2026-10-28 10:08 | Docs: investigation evidence spec (`docs/hackathon/05-investigation-evidence.md`) with `EVIDENCE.md`, `DEMO_PLAN.md`, `AI_USAGE.md` and `README.md` edits |
+| #13 | `30b9caa` | 2026-10-28 19:01 | Docs: product-led `README.md` |
+| #1 | `456e007` | 2026-10-29 16:52 | Dependency: `go.opentelemetry.io/otel` 1.40.0 → 1.42.0 (`go.mod`, `go.sum`) |
+| #2 | `1f0dbd5` | 2026-10-29 17:10 | Dependency: `github.com/klauspost/compress` 1.18.3 → 1.18.7 (`go.mod`, `go.sum`) |
+| #8 | `11394ee` | 2026-10-29 17:10 | Dependency: `rustls-webpki` 0.103.4 → 0.103.16 (`exex/Cargo.lock`) |
+| #14 | `c150a6c` | 2026-10-29 17:47 | Product website: new `website/`; CI `website` job (`.github/workflows/ci.yml`); `AI_USAGE.md`, `CONTINUITY.md`, `README.md` |
+| #15 | `8bf5769` | 2026-10-29 21:06 | Dependency: `rustls` 0.23.31 → 0.23.46 (`exex/Cargo.lock`) |
+| #16 | `e47256b` | 2026-10-30 15:08 | CI: GitHub Pages deployment of the website (`.github/workflows/deploy-website.yml`) |
+| #17 | `2ed92ef` | 2026-10-30 16:43 | Docs: website URL recorded (`README.md`, `website/README.md`) |
+| #18 | `39e6c86` | 2026-11-05 01:50 | Existing-core fixes: API-key sync and `/ws` fan-out (`cmd/api`), address normalization (`cmd/api`, `cmd/rpc-gateway`), bounded ExEx DB-receipt wait (`exex/src/main.rs`), `go test` in CI; tests and docs |
+| #19 | `90d1108` | 2026-11-05 12:53 | Existing-core fixes: `/ws` Gatekeeper fails closed with throttled Valkey client retries (`cmd/api`); API-key lookups with `FINAL`, a 10 s key cache and 503 for failed lookups (`cmd/rpc-gateway`); tests and docs |
+| #20 | `56ad09a` | 2026-11-05 13:07 | CI: `redis-server` installed in the `go` job and Go tests run with `-v -count=1` (`.github/workflows/ci.yml`) |
 
 Every commit that will be reachable from the tag `ethglobal-mumbai-2026-start` (not yet created; see below) is pre-existing. The feature specs in
 `docs/hackathon/` are part of this pre-kickoff documentation. They are committed scope—specifications only, not yet implemented. They describe what will be
@@ -90,7 +120,7 @@ git log ethglobal-mumbai-2026-start..HEAD
 git diff ethglobal-mumbai-2026-start..HEAD
 ```
 
-To see everything added since the baseline snapshot (pre-kickoff documentation plus event work):
+To see everything added since the baseline snapshot (pre-kickoff changes plus event work):
 
 ```bash
 git diff baseline-pre-ethglobal-mumbai..HEAD
