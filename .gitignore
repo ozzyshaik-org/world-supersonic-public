@@ -40,3 +40,8 @@ rollup*.json
 .idea/
 .vscode/
 .DS_Store
+
+# node
+node_modules/
+dist/
+*.tsbuildinfo
