@@ -1,8 +1,10 @@
 # Evidence register
 
-Status: template, pre-start documentation. Nothing in this register has been run. Every event row is `NOT_YET_RUN` or
-`PLANNED`. The Commit, Actual and Proof columns stay empty until a real run produces a real result. Do not enter
-transaction hashes, URLs or results that were not produced by a recorded run.
+Status: register with one **local-only** verification section for the experimental `x402-seller` seller-engine
+checkpoint. Every Arc / IDKit / Agent Pass / ENS / cross-feature / investigation **live** row below remains
+`NOT_YET_RUN` or `PLANNED` unless its complete stated procedure was run. Do not enter transaction hashes, URLs or
+results that were not produced by a recorded run. Do not convert unit-fake or contract-real-local results into live
+Arc / Circle claims.
 
 > Authorization, fulfillment, batching and settlement require separate evidence. Gateway balance/transfer/status evidence must not be replaced by an unrelated recipient-wallet balance check.
 
@@ -10,12 +12,82 @@ Status values:
 
 - `NOT_YET_RUN`: the claim has a defined procedure, and the procedure has not been run.
 - `PLANNED`: the claim is intended but its procedure is not yet defined in detail.
+- `NOT_RUN`: used in the local-verification section for a follow-up procedure that is defined but not yet executed on this branch (placeholder until a later incremental commit records results).
+- `MISSING`: a required submission artifact (URL, video, Studio project, public demo) does not exist yet.
+
+Evidence labels used in the local-verification section:
+
+- `unit-fake`: in-process unit tests with a clearly labelled FAKE Gateway (and fake upstream). No network to Circle / Arc.
+- `contract-real-local`: local import/contract checks against committed Circle/chain configuration, still with no live network call.
 
 Row IDs: `ARC-nn` (Arc), `IDK-nn` (World ID IDKit), `AP-nn` (Agent Pass), `ENS-nn` (ENS), `X-nn` (cross-feature) and `INV-nn` (investigation/reproducibility). The "Done means" column names the spec item each row traces to, written `<spec>-DM<n>` (for example `01-DM5` is item 5 of spec 01), and the last section lists every item with its rows. Rows in the single-feature tables may cover only part of an item; the procedure column says what is run.
 
 Specifications: [Arc x402](docs/hackathon/01-x402-arc-gateway.md), [World ID IDKit](docs/hackathon/02-world-id-gating.md),
 [World ID Agent Pass](docs/hackathon/04-agent-pass.md), [ENS](docs/hackathon/03-ens-integration.md) and
-[investigation/evidence](docs/hackathon/05-investigation-evidence.md). Feature and supporting event work is not implemented yet.
+[investigation/evidence](docs/hackathon/05-investigation-evidence.md).
+
+**Event implementation note (6 Nov 2026).** Draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) (`feat/arc-x402-seller`, head `f79de2f36b8a07371b072398ea1e2657775c3a2f`) adds an **experimental seller-engine checkpoint** under `x402-seller/`. It is event-built work after `ethglobal-mumbai-2026-start`. It is **not** a live Arc / Circle integration, **not** a real HTTP seller surface, and **not** Arc Studio. Live ARC rows below stay `NOT_YET_RUN` / `PLANNED`. IDKit, Agent Pass, ENS and pstack formal verification are **deferred** until the frozen paid `/v1/mev/analytics` slice and its evidence are complete; those rows stay as written and are not started.
+
+
+## Local verification: experimental x402-seller checkpoint (`f79de2f`)
+
+Scope: off-chain TypeScript seller **engine** only (draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23), unmerged). Labels: `unit-fake` (FAKE Gateway) and `contract-real-local` (`circleImport`, no network). This section does **not** pass any live ARC row above.
+
+### Revisions
+
+| Role | Full SHA | Note |
+|---|---|---|
+| Pre-fix (lease/budget race still present) | `dc761fd4ce68c5339571ac6e6bcd2b5f5684f85a` | New ledger regression fails as expected |
+| Fix (accepted local/unit evidence) | `f79de2f36b8a07371b072398ea1e2657775c3a2f` | Atomic retryable/budget CAS under original lease |
+
+### Commands (run in `x402-seller/` at `f79de2f`)
+
+```bash
+cd x402-seller
+npm ci --no-audit --no-fund
+npm run typecheck
+npm run build
+npm test
+```
+
+### Results at `f79de2f` (owner independently verified, local/unit, 6 Nov 2026 Asia/Calcutta)
+
+| Check | Result | Label |
+|---|---|---|
+| `npm run typecheck` | passed | local |
+| `npm run build` | passed | local |
+| `npm test` | **116/116** passed | `unit-fake` + `contract-real-local` |
+| CI run [`42180463805`](https://github.com/ozzyshaik-org/world-supersonic-public/actions/runs/42180463805) | success (`x402-seller`, `go`, `website` jobs) | CI on PR #23 |
+
+Per-file test counts at `f79de2f` (sum 116):
+
+| File | Tests |
+|---|---|
+| `test/fingerprint.test.ts` | 21 |
+| `test/authKey.test.ts` | 3 |
+| `test/paymentStructure.test.ts` | 27 |
+| `test/stateMachine.test.ts` | 20 |
+| `test/regressionMatrix.test.ts` | 38 |
+| `test/circleImport.test.ts` | 2 (`contract-real-local`) |
+| `test/leaseRaceBudget.test.ts` | 5 (race / lease-budget suite) |
+
+### Race fix evidence boundary (owner-accepted)
+
+- All **five** tests in `test/leaseRaceBudget.test.ts` passed at `f79de2f`.
+- **Pre-fix oracle (ledger-level only):** on `dc761fd`, the new ledger regression fails with the expected `toBeNull` assertion failure. Observed wrong state after the unfenced clobber: `fulfillmentState = failed_permanent`, incident `paid_unfulfilled`, `leaseGeneration = 2` (peer had taken a newer lease). This proves the ledger interleaving bug before the CAS fence.
+- **Evidence boundary (mandatory):** the pre-fix proof is **ledger-level**. A pre-fix full **engine-level** 2xx rejection was **not** independently reproduced. Do not claim otherwise.
+- **No live Arc / Circle behaviour** has been verified by these runs. FAKE Gateway only. Never convert these results into live Arc claims.
+
+### Follow-up placeholders (not yet run on this docs branch)
+
+| Item | Status | Notes |
+|---|---|---|
+| Real HTTP adapter around `SellerEngine` | in progress on separate branch `feat/x402-http-adapter` (not this PR) | Thinnest HTTP 402 / Retry-After / payment parse / redirect-disabled fetch / timeouts / API-key / bypass prevention / stored-response replay |
+| Local HTTP end-to-end tests (real local HTTP server + real local upstream + FAKE Gateway) | `NOT_RUN` | Label when filled: `local-http-integration` + `unit-fake` Gateway. **Not** live Arc evidence. Placeholder for a later incremental commit once that branch's results exist. |
+| Arc Studio project / Studio URL | `MISSING` | No owner-supplied Studio project URL yet |
+| Public demo URL | `MISSING` | |
+| Live Gateway / Arc Testnet payment, batching, settlement, end-to-end | `NOT_YET_RUN` / keep ARC-01…ARC-23 as written | Do not mark passed until the complete stated procedure runs with real credentials |
+| Demo video | `MISSING` | |
 
 ## Arc: x402 with Circle Gateway (priority 1, core)
 
