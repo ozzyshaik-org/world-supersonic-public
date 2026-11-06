@@ -91,8 +91,7 @@ Annotated start tag `ethglobal-mumbai-2026-start` exists on origin:
 - Every other commit reachable from the start tag is pre-existing work.
 - Commits after the start tag are event work, subject to their actual content and timestamps.
 
-
-Every commit reachable from the tag `ethglobal-mumbai-2026-start`, other than the special case for merge commit `cb39dbb` under Corrected Variant B below, is pre-existing. The feature specs in
+Every commit reachable from the tag `ethglobal-mumbai-2026-start`, other than the special case for merge commit `cb39dbb` under Corrected Variant B above, is pre-existing. The feature specs in
 `docs/hackathon/` are part of this pre-kickoff documentation. They are committed scope—specifications only, not yet implemented. They describe what will be
 built; the implementation is event work.
 
