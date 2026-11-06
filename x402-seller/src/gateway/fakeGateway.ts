@@ -14,8 +14,12 @@ import type {
 
 export type FakeSettleMode =
   | { kind: "success"; transferId?: string }
+  | { kind: "success_missing_transaction" }
   | { kind: "reject"; errorReason: string }
+  | { kind: "reject_missing_errorReason" }
   | { kind: "http400"; errorReason?: string }
+  | { kind: "http500" }
+  | { kind: "malformed" }
   | { kind: "uncertain"; reason: "timeout" | "empty_body" | "unexpected_error" | "drop" }
   | { kind: "nonce_already_used" };
 
@@ -25,6 +29,10 @@ export interface FakeGatewayOptions {
   transfersByNonce?: Map<string, TransferRecord>;
   /** Pre-seeded transfers keyed by id. */
   transfersById?: Map<string, TransferRecord>;
+  /** When true, getTransferById / searchTransfers throw. */
+  lookupFails?: boolean;
+  /** Extra transfers returned by search to force ambiguity. */
+  ambiguousExtra?: TransferRecord[];
 }
 
 let fakeSeq = 0;
@@ -41,18 +49,29 @@ export class FakeGatewayClient implements GatewayClient {
   settleMode: FakeSettleMode;
   transfersByNonce: Map<string, TransferRecord>;
   transfersById: Map<string, TransferRecord>;
-  /** When true, next settle uses settleModeOnce then clears it. */
   settleModeOnce: FakeSettleMode | null = null;
+  lookupFails: boolean;
+  ambiguousExtra: TransferRecord[];
+  getTransferByIdCalls = 0;
+  searchTransfersCalls = 0;
 
   constructor(options: FakeGatewayOptions = {}) {
     this.settleMode = options.settleMode ?? { kind: "success" };
     this.transfersByNonce = options.transfersByNonce ?? new Map();
     this.transfersById = options.transfersById ?? new Map();
+    this.lookupFails = options.lookupFails ?? false;
+    this.ambiguousExtra = options.ambiguousExtra ?? [];
   }
 
   seedTransfer(record: TransferRecord): void {
     this.transfersByNonce.set(record.nonce.toLowerCase(), record);
     this.transfersById.set(record.id, record);
+  }
+
+  /** Seed without overwriting nonce map uniqueness — for ambiguity tests. */
+  seedExtraTransfer(record: TransferRecord): void {
+    this.transfersById.set(record.id, record);
+    this.ambiguousExtra.push(record);
   }
 
   async settle(
@@ -75,7 +94,7 @@ export class FakeGatewayClient implements GatewayClient {
           recipientNetwork: requirements.network,
           fromAddress: auth.from.toLowerCase(),
           toAddress: auth.to.toLowerCase(),
-          amount: auth.value,
+          amount: String(auth.value),
           nonce: auth.nonce.toLowerCase(),
           txHash: null,
           createdAt: "1970-01-01T00:00:00.000Z",
@@ -88,10 +107,21 @@ export class FakeGatewayClient implements GatewayClient {
           transaction: id,
         };
       }
+      case "success_missing_transaction":
+        return {
+          success: true,
+          payer: "0xfake",
+          transaction: "",
+        };
       case "reject":
         return {
           success: false,
           errorReason: mode.errorReason,
+          transaction: "",
+        };
+      case "reject_missing_errorReason":
+        return {
+          success: false,
           transaction: "",
         };
       case "http400": {
@@ -103,6 +133,13 @@ export class FakeGatewayClient implements GatewayClient {
           mode.errorReason ?? "invalid_payload";
         throw err;
       }
+      case "http500": {
+        const err = new Error("FAKE Gateway HTTP 500 unexpected_error");
+        (err as Error & { httpStatus: number }).httpStatus = 500;
+        throw err;
+      }
+      case "malformed":
+        return { success: true, transaction: "" } as SettleResponse;
       case "uncertain": {
         if (mode.reason === "empty_body") {
           const err = new Error("Circle Gateway settle returned empty response (FAKE/500)");
@@ -134,6 +171,10 @@ export class FakeGatewayClient implements GatewayClient {
   }
 
   async getTransferById(id: string): Promise<TransferRecord | null> {
+    this.getTransferByIdCalls += 1;
+    if (this.lookupFails) {
+      throw new Error("FAKE Gateway lookup failure (getTransferById)");
+    }
     return this.transfersById.get(id) ?? null;
   }
 
@@ -144,12 +185,22 @@ export class FakeGatewayClient implements GatewayClient {
     network: string;
     status?: TransferStatus;
   }): Promise<TransferRecord[]> {
+    this.searchTransfersCalls += 1;
+    if (this.lookupFails) {
+      throw new Error("FAKE Gateway lookup failure (searchTransfers)");
+    }
     if (!params.network) {
       throw new Error("FAKE Gateway: network must be passed explicitly");
     }
     let results = [...this.transfersByNonce.values()].filter(
       (t) => t.sendingNetwork === params.network,
     );
+    // Include ambiguous extras that match filters
+    for (const extra of this.ambiguousExtra) {
+      if (extra.sendingNetwork === params.network) {
+        results.push(extra);
+      }
+    }
     if (params.nonce) {
       const n = params.nonce.toLowerCase();
       results = results.filter((t) => t.nonce.toLowerCase() === n);
@@ -171,7 +222,8 @@ export class FakeGatewayClient implements GatewayClient {
 
 /** Build an obviously synthetic transfer fixture (never use as live evidence). */
 export function makeFakeTransfer(
-  partial: Partial<TransferRecord> & Pick<TransferRecord, "nonce" | "fromAddress" | "toAddress" | "amount" | "sendingNetwork">,
+  partial: Partial<TransferRecord> &
+    Pick<TransferRecord, "nonce" | "fromAddress" | "toAddress" | "amount" | "sendingNetwork">,
 ): TransferRecord {
   const id = partial.id ?? `fake-transfer-fixture-${partial.nonce.slice(0, 10)}`;
   return {

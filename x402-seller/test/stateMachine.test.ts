@@ -10,6 +10,7 @@ import {
   FIXTURE_NETWORK,
   FIXTURE_PAY_TO,
   FIXTURE_PAYER,
+  FIXTURE_ASSET,
   fakeNonce,
   makePayment,
   makeRequest,
@@ -40,6 +41,7 @@ describe("402 unpaid challenge", () => {
     expect(res.code).toBe("payment_required");
     expect(res.paymentRequirements?.network).toBe(FIXTURE_NETWORK);
     expect(res.paymentRequirements?.amount).toBe("10000");
+    expect(res.paymentRequirements?.extra.name).toBe("GatewayWalletBatched");
     expect(gateway.settleCalls).toHaveLength(0);
     expect(ledger.getByNonce(fakeNonce(1))).toBeUndefined();
   });
@@ -90,18 +92,14 @@ describe("ordering: settle before fulfill", () => {
 
 describe("automatic void rules", () => {
   it("voids only from submission_pending with attempt counter 0 after validity closes", async () => {
-    const { engine, gateway, ledger, setNowMs } = makeSeller();
-    // Insert a reserved-but-never-submitted row by exercising validate path then...
-    // Use internal ledger insert via a payment that we interrupt: claim never happens if we
-    // insert manually.
+    const { engine, gateway, ledger, setNowMs } = makeSeller({
+      nowMs: 1_750_000_000_000,
+    });
     const payment = makePayment({
       nonce: fakeNonce(9),
       validAfter: 1_700_000_000,
-      validBefore: 1_800_000_000, // seconds
+      validBefore: 1_800_000_000,
     });
-    // Force a reservation without settle by inserting through a custom path:
-    // First unpaid? Better: insert via handle that we can't easily interrupt.
-    // Use ledger directly with engine's validate by calling handle after manual insert.
     const { buildAuthKey } = await import("../src/authKey.js");
     const { computeFingerprintV1 } = await import("../src/fingerprint.js");
     const fp = computeFingerprintV1({
@@ -120,7 +118,7 @@ describe("automatic void rules", () => {
         authKey,
         nonce: fakeNonce(9),
         network: FIXTURE_NETWORK,
-        asset: "0x3600000000000000000000000000000000000000",
+        asset: FIXTURE_ASSET.toLowerCase(),
         payTo: FIXTURE_PAY_TO.toLowerCase(),
         price: "10000",
         payer: FIXTURE_PAYER.toLowerCase(),
@@ -134,7 +132,6 @@ describe("automatic void rules", () => {
     expect(ledger.getByAuthKey(authKey)!.attemptCounter).toBe(0);
     expect(ledger.getByAuthKey(authKey)!.paymentState).toBe("submission_pending");
 
-    // Advance past validBefore
     setNowMs(1_800_000_001_000);
     const res = await engine.handle(makeRequest({ payment }));
     expect(res.code).toBe("authorization_void");
@@ -147,21 +144,27 @@ describe("automatic void rules", () => {
     const gateway = new FakeGatewayClient({
       settleMode: { kind: "uncertain", reason: "timeout" },
     });
-    const { engine, ledger, setNowMs } = makeSeller({ gateway });
+    // Start early enough that validBefore 1_900_000_000 clears the 3-day rule,
+    // then advance past it after the uncertain attempt.
+    const { engine, ledger, setNowMs } = makeSeller({
+      gateway,
+      nowMs: 1_700_100_000_000,
+    });
     const payment = makePayment({
       nonce: fakeNonce(10),
       validAfter: 1_700_000_000,
-      validBefore: 1_800_000_000,
+      validBefore: 1_710_000_000, // > now+3d at start (now=1_700_100_000)
     });
+    // 1_710_000_000 - 1_700_100_000 = 9_900_000 < 259200? 9.9M > 259200 yes.
     const res1 = await engine.handle(makeRequest({ payment }));
     expect(res1.code).toBe("payment_submission_unresolved");
+    expect(res1.retryAfterSeconds).toBeTypeOf("number");
     const row = ledger.getByNonce(fakeNonce(10))!;
     expect(row.paymentState).toBe("submission_uncertain");
     expect(row.attemptCounter).toBeGreaterThan(0);
 
-    setNowMs(1_900_000_000_000); // far past validBefore
-    // Empty lookup + closed window → stay uncertain, flag unresolved, never void
-    gateway.settleMode = { kind: "success" }; // should not be used for void path
+    setNowMs(1_900_000_000_000);
+    gateway.settleMode = { kind: "success" };
     const res2 = await engine.handle(makeRequest({ payment }));
     expect(res2.code).toBe("payment_submission_unresolved");
     const latest = ledger.getByNonce(fakeNonce(10))!;
@@ -181,6 +184,7 @@ describe("uncertain submission and late matching transfer", () => {
     const payment = makePayment({ nonce: fakeNonce(11) });
     const res = await engine.handle(makeRequest({ payment }));
     expect(res.code).toBe("payment_submission_unresolved");
+    expect(res.retryAfterSeconds).toBeTypeOf("number");
     expect(upstream.calls).toHaveLength(0);
     expect(ledger.getByNonce(fakeNonce(11))!.paymentState).toBe("submission_uncertain");
   });
@@ -190,20 +194,22 @@ describe("uncertain submission and late matching transfer", () => {
       settleMode: { kind: "uncertain", reason: "timeout" },
     });
     const upstream = new FakeUpstreamClient({ kind: "success" });
-    const { engine, ledger, setNowMs } = makeSeller({ gateway, upstream });
+    const { engine, ledger, setNowMs } = makeSeller({
+      gateway,
+      upstream,
+      nowMs: 1_700_100_000_000,
+    });
     const nonce = fakeNonce(12);
     const payment = makePayment({
       nonce,
       validAfter: 1_700_000_000,
-      validBefore: 1_800_000_000,
+      validBefore: 1_710_000_000,
     });
     await engine.handle(makeRequest({ payment }));
     expect(ledger.getByNonce(nonce)!.paymentState).toBe("submission_uncertain");
 
-    // Validity closed
     setNowMs(1_900_000_000_000);
 
-    // Late matching synthetic transfer appears
     gateway.seedTransfer(
       makeFakeTransfer({
         id: "fake-late-transfer-001",
@@ -240,7 +246,7 @@ describe("uncertain submission and late matching transfer", () => {
   });
 });
 
-describe("binding mismatch", () => {
+describe("binding mismatch (legacy subset preserved)", () => {
   it("rejects same nonce with different fingerprint (409)", async () => {
     const { engine, gateway, upstream } = makeSeller();
     const nonce = fakeNonce(14);
@@ -256,7 +262,6 @@ describe("binding mismatch", () => {
     const res2 = await engine.handle(
       makeRequest({
         payment,
-        // different address → different fingerprint
         rawQuery: "address=0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
       }),
     );
@@ -312,7 +317,6 @@ describe("fulfilled retry and gateway observation", () => {
     const row = ledger.getByNonce(fakeNonce(18))!;
     const id = row.gatewayTransferId!;
 
-    // FAKE status progression
     gateway.seedTransfer(
       makeFakeTransfer({
         id,
@@ -365,7 +369,6 @@ describe("failed transfer vs fulfillment", () => {
     const gateway = new FakeGatewayClient({
       settleMode: { kind: "success", transferId: "fake-transfer-fail-before" },
     });
-    // Immediately mark failed before fulfill by seeding failed status
     gateway.seedTransfer(
       makeFakeTransfer({
         id: "fake-transfer-fail-before",
@@ -377,7 +380,6 @@ describe("failed transfer vs fulfillment", () => {
         status: "failed",
       }),
     );
-    // Override settle to return success with that id but keep failed transfer
     gateway.settle = async (payload, requirements) => {
       gateway.settleCalls.push({ payload, requirements });
       return {
@@ -394,12 +396,14 @@ describe("failed transfer vs fulfillment", () => {
     expect(upstream.calls).toHaveLength(0);
   });
 
-  it("failed after fulfillment → keep response + fulfilled_but_unpaid", async () => {
+  it("failed after fulfillment → keep response + fulfilled_but_unpaid in ledger only", async () => {
     const gateway = new FakeGatewayClient({ settleMode: { kind: "success" } });
     const { engine, ledger } = makeSeller({ gateway });
     const nonce = fakeNonce(20);
     const res1 = await engine.handle(makeRequest({ payment: makePayment({ nonce }) }));
     expect(res1.code).toBe("ok");
+    const body1 = res1.body as { data: unknown; receipt: unknown; incident?: string };
+    expect(body1.incident).toBeUndefined();
     const row = ledger.getByNonce(nonce)!;
     const id = row.gatewayTransferId!;
 
@@ -421,7 +425,13 @@ describe("failed transfer vs fulfillment", () => {
 
     const res2 = await engine.handle(makeRequest({ payment: makePayment({ nonce }) }));
     expect(res2.code).toBe("ok");
-    expect(res2.body).toMatchObject({ incident: "fulfilled_but_unpaid" });
+    // Client response must NOT carry incident fields — unchanged stored body/receipt
+    expect(res2.body).toEqual({
+      data: body1.data,
+      receipt: expect.objectContaining({ authKey: row.authKey }),
+    });
+    expect((res2.body as { incident?: string }).incident).toBeUndefined();
+    expect(ledger.getByNonce(nonce)!.incidents).toContain("fulfilled_but_unpaid");
   });
 });
 
@@ -458,7 +468,7 @@ describe("permanent upstream failure after acceptance", () => {
     const row = ledger.getByNonce(nonce)!;
     expect(row.fulfillmentState).toBe("failed_permanent");
     expect(row.incidents).toContain("paid_unfulfilled");
-    expect(row.paymentState).toBe("accepted"); // never voided
+    expect(row.paymentState).toBe("accepted");
   });
 });
 
@@ -474,6 +484,8 @@ describe("lease fencing", () => {
     const overwritten = ledger.commitFulfillment(
       row.authKey,
       "stale-worker",
+      999,
+      Date.now(),
       { status: 200, body: { evil: true }, contentType: "application/json" },
       {
         authKey: row.authKey,
@@ -490,19 +502,19 @@ describe("lease fencing", () => {
   });
 });
 
-describe("one settle for concurrent first arrivals (serial lock)", () => {
-  it("second same-binding call does not settle again after acceptance", async () => {
-    const { engine, gateway, upstream } = makeSeller();
+describe("one settle for concurrent first arrivals", () => {
+  it("concurrent same-binding callers get identical successful stored responses", async () => {
+    const { engine, gateway, upstream } = makeSeller({ leaseWaitMs: 2_000 });
     const payment = makePayment({ nonce: fakeNonce(24) });
     const results = await Promise.all([
       engine.handle(makeRequest({ payment })),
       engine.handle(makeRequest({ payment })),
+      engine.handle(makeRequest({ payment })),
     ]);
-    expect(results.every((r) => r.code === "ok" || r.code === "upstream_error")).toBe(true);
-    // With mutex, both complete; settle exactly once
+    expect(results.every((r) => r.code === "ok")).toBe(true);
     expect(gateway.settleCalls).toHaveLength(1);
-    // Upstream may be 1 (second served from store) — allow 1
-    expect(upstream.calls.length).toBeLessThanOrEqual(2);
+    const bodies = results.map((r) => JSON.stringify(r.body));
+    expect(new Set(bodies).size).toBe(1);
     expect(upstream.calls.length).toBeGreaterThanOrEqual(1);
   });
 });

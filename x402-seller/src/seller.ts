@@ -1,19 +1,33 @@
 /**
  * Seller engine: validate → reserve → settle() → fulfill.
  * Never fulfill before Gateway acceptance. No seller batch worker.
+ * Ledger mutex is never held across Gateway or upstream network calls.
  */
 
-import { buildAuthKey, assertNonce32Bytes, AuthKeyError } from "./authKey.js";
+import { randomUUID } from "node:crypto";
+import { AuthKeyError } from "./authKey.js";
+import { ARC_TESTNET_GATEWAY_WALLET } from "./chainConfig.js";
 import { computeFingerprintV1 } from "./fingerprint.js";
 import type { GatewayClient } from "./gateway/client.js";
 import { MemoryLedger, LedgerConflictError } from "./ledger/memoryLedger.js";
+import {
+  bindingMismatchField,
+  buildPaymentRequirements,
+  parseCandidateBinding,
+  PaymentValidationError,
+  validateNewPayment,
+} from "./paymentValidation.js";
 import { lookupPrice, DEFAULT_PRICE_TABLE } from "./priceTable.js";
+import {
+  classifySearchHits,
+  classifyTransferById,
+  type LookupOutcome,
+} from "./transferMatch.js";
 import type { UpstreamClient } from "./upstream/client.js";
 import type {
   AuthorizationBinding,
   LedgerRow,
   PaymentPayload,
-  PaymentRequirements,
   PriceTableEntry,
   SellerRequest,
   SellerResult,
@@ -26,11 +40,19 @@ export interface SellerConfig {
   network: string;
   asset: string;
   payTo: string;
+  /** GatewayWallet verifyingContract from validated/official chain config. */
+  verifyingContract?: string;
   priceTable?: readonly PriceTableEntry[];
   leaseMs?: number;
   attemptCap?: number;
   /** Permanent failure after this many fulfillment attempts. */
   fulfillmentRetryBudget?: number;
+  /** Total-time retry budget in ms (spec rule 12). */
+  fulfillmentRetryBudgetMs?: number;
+  /** Default Retry-After seconds for unresolved 503s. */
+  unresolvedRetryAfterSeconds?: number;
+  /** Max wait for an in-progress lease holder before takeover check. */
+  leaseWaitMs?: number;
   clock?: () => Date;
 }
 
@@ -41,27 +63,28 @@ export interface SellerDeps {
   config: SellerConfig;
 }
 
-function toInt(v: string | number): number {
-  return typeof v === "number" ? v : Number.parseInt(String(v), 10);
-}
-
-function lower0x(addr: string): string {
-  return addr.toLowerCase();
-}
+const DEFAULT_RETRY_AFTER = 2;
+const LEASE_POLL_MS = 25;
 
 export class SellerEngine {
   readonly gateway: GatewayClient;
   readonly upstream: UpstreamClient;
   readonly ledger: MemoryLedger;
   readonly config: Required<
-    Pick<SellerConfig, "leaseMs" | "attemptCap" | "fulfillmentRetryBudget">
+    Pick<
+      SellerConfig,
+      | "leaseMs"
+      | "attemptCap"
+      | "fulfillmentRetryBudget"
+      | "fulfillmentRetryBudgetMs"
+      | "unresolvedRetryAfterSeconds"
+      | "leaseWaitMs"
+      | "verifyingContract"
+    >
   > &
     SellerConfig;
   readonly priceTable: readonly PriceTableEntry[];
   private readonly clock: () => Date;
-  private workerSeq = 0;
-  /** Tracks fulfillment attempts per auth_key for permanent-failure budget. */
-  private fulfillmentAttempts = new Map<string, number>();
 
   constructor(deps: SellerDeps) {
     this.gateway = deps.gateway;
@@ -70,9 +93,14 @@ export class SellerEngine {
     this.priceTable = deps.config.priceTable ?? DEFAULT_PRICE_TABLE;
     this.config = {
       ...deps.config,
+      verifyingContract: deps.config.verifyingContract ?? ARC_TESTNET_GATEWAY_WALLET,
       leaseMs: deps.config.leaseMs ?? 5_000,
       attemptCap: deps.config.attemptCap ?? 3,
       fulfillmentRetryBudget: deps.config.fulfillmentRetryBudget ?? 3,
+      fulfillmentRetryBudgetMs: deps.config.fulfillmentRetryBudgetMs ?? 60_000,
+      unresolvedRetryAfterSeconds:
+        deps.config.unresolvedRetryAfterSeconds ?? DEFAULT_RETRY_AFTER,
+      leaseWaitMs: deps.config.leaseWaitMs ?? 2_000,
     };
     this.clock = deps.config.clock ?? (() => new Date());
   }
@@ -89,30 +117,39 @@ export class SellerEngine {
     return Math.floor(this.now().getTime() / 1000);
   }
 
-  buildRequirements(entry: PriceTableEntry): PaymentRequirements {
+  nowMs(): number {
+    return this.now().getTime();
+  }
+
+  private terms() {
     return {
-      scheme: "exact",
       network: this.config.network,
       asset: this.config.asset,
-      amount: entry.price,
       payTo: this.config.payTo,
-      maxTimeoutSeconds: 345600,
-      extra: {
-        name: "GatewayWalletBatched",
-        version: "1",
-        verifyingContract: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
-      },
+      verifyingContract: this.config.verifyingContract,
     };
   }
 
-  async handle(req: SellerRequest): Promise<SellerResult> {
-    return this.ledger.withLock(() => this.handleLocked(req));
+  buildRequirements(entry: PriceTableEntry) {
+    return buildPaymentRequirements(entry, this.terms());
   }
 
-  private async handleLocked(req: SellerRequest): Promise<SellerResult> {
+  private unresolved503(authKey: string, gatewayErrorReason?: string): SellerResult {
+    return {
+      httpStatus: 503,
+      code: "payment_submission_unresolved",
+      authKey,
+      retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
+      ...(gatewayErrorReason ? { gatewayErrorReason } : {}),
+    };
+  }
+
+  /**
+   * Public entry. Short ledger critical sections only; network waits are outside.
+   */
+  async handle(req: SellerRequest): Promise<SellerResult> {
     const entry = lookupPrice(this.priceTable, req.path);
 
-    // Method / body / path / fingerprint validation before any ledger or Gateway call
     if (req.method !== "GET") {
       return { httpStatus: 405, code: "method_not_allowed" };
     }
@@ -123,7 +160,6 @@ export class SellerEngine {
       return { httpStatus: 404, code: "not_found" };
     }
     if (entry.routeClass === "agent_pass") {
-      // Agent Pass composition is out of first-checkpoint scope; refuse before settle.
       return {
         httpStatus: 403,
         code: "bad_request",
@@ -160,27 +196,55 @@ export class SellerEngine {
       };
     }
 
-    let binding: AuthorizationBinding;
+    // Existing-nonce path: parse candidate binding first, apply binding rule
+    // BEFORE ordinary price-table mismatch rejection.
+    let candidate: AuthorizationBinding;
     try {
-      binding = this.validatePaymentStructure(req.payment, entry, fp.fingerprint);
+      candidate = parseCandidateBinding(req.payment, fp.fingerprint);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return { httpStatus: 400, code: "bad_request", body: { reason: msg } };
+      const status = e instanceof PaymentValidationError ? e.httpStatus : 400;
+      return { httpStatus: status, code: "bad_request", body: { reason: msg } };
     }
 
-    // Existing nonce / auth_key?
-    const existingByNonce = this.ledger.getByNonce(binding.nonce);
+    const existingByNonce = await this.ledger.withLock(() =>
+      this.ledger.getByNonce(candidate.nonce),
+    );
+
     if (existingByNonce) {
-      return this.handleExisting(existingByNonce, binding, req);
+      const mismatch = bindingMismatchField(existingByNonce, candidate);
+      if (mismatch) {
+        return {
+          httpStatus: 409,
+          code: "authorization_binding_mismatch",
+          body: { field: mismatch },
+          authKey: existingByNonce.authKey,
+        };
+      }
+      return this.handleExisting(existingByNonce, candidate, req);
     }
 
-    // Reserve
+    // NEW nonce: full route-term validation before reservation
+    let binding: AuthorizationBinding;
+    try {
+      binding = validateNewPayment(req.payment, entry, fp.fingerprint, {
+        ...this.terms(),
+        nowSec: this.nowSec(),
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const status = e instanceof PaymentValidationError ? e.httpStatus : 400;
+      return { httpStatus: status, code: "bad_request", body: { reason: msg } };
+    }
+
     let row: LedgerRow;
     try {
-      row = this.ledger.insertReservation(binding, req.payment, this.nowIso());
+      row = await this.ledger.withLock(() =>
+        this.ledger.insertReservation(binding, req.payment!, this.nowIso()),
+      );
     } catch (e) {
       if (e instanceof LedgerConflictError) {
-        const again = this.ledger.getByNonce(binding.nonce);
+        const again = await this.ledger.withLock(() => this.ledger.getByNonce(binding.nonce));
         if (again) return this.handleExisting(again, binding, req);
       }
       throw e;
@@ -189,101 +253,16 @@ export class SellerEngine {
     return this.submitAndMaybeFulfill(row, req);
   }
 
-  private validatePaymentStructure(
-    payment: PaymentPayload,
-    entry: PriceTableEntry,
-    fingerprint: string,
-  ): AuthorizationBinding {
-    const auth = payment.payload?.authorization;
-    if (!auth) throw new Error("missing authorization");
-    const nonce = assertNonce32Bytes(auth.nonce);
-    const payer = lower0x(auth.from);
-    const payTo = lower0x(auth.to);
-    const value = String(auth.value);
-    const validAfter = toInt(auth.validAfter);
-    const validBefore = toInt(auth.validBefore);
-    if (!Number.isFinite(validAfter) || !Number.isFinite(validBefore)) {
-      throw new Error("invalid validity window");
-    }
-    if (payTo !== lower0x(this.config.payTo)) {
-      throw new Error("payTo mismatch");
-    }
-    if (value !== entry.price) {
-      throw new Error("amount mismatch");
-    }
-    const network = payment.network ?? this.config.network;
-    if (network !== this.config.network) {
-      throw new Error("network mismatch");
-    }
-    // asset is on requirements; payload may not carry it — enforced against config/price table
-    const authKey = buildAuthKey(network, payer, nonce);
-    return {
-      authKey,
-      nonce,
-      network,
-      asset: this.config.asset,
-      payTo: lower0x(this.config.payTo),
-      price: entry.price,
-      payer,
-      validAfter,
-      validBefore,
-      fingerprint,
-    };
-  }
-
-  private bindingsEqual(a: AuthorizationBinding, b: AuthorizationBinding): boolean {
-    return (
-      a.authKey === b.authKey &&
-      a.nonce === b.nonce &&
-      a.network === b.network &&
-      a.asset === b.asset &&
-      a.payTo === b.payTo &&
-      a.price === b.price &&
-      a.payer === b.payer &&
-      a.validAfter === b.validAfter &&
-      a.validBefore === b.validBefore &&
-      a.fingerprint === b.fingerprint
-    );
-  }
-
-  private bindingMismatchField(
-    stored: AuthorizationBinding,
-    incoming: AuthorizationBinding,
-  ): string | null {
-    const fields: (keyof AuthorizationBinding)[] = [
-      "payer",
-      "network",
-      "asset",
-      "payTo",
-      "price",
-      "validAfter",
-      "validBefore",
-      "fingerprint",
-    ];
-    for (const f of fields) {
-      if (stored[f] !== incoming[f]) return f;
-    }
-    return null;
-  }
-
   private async handleExisting(
     stored: LedgerRow,
     incoming: AuthorizationBinding,
     req: SellerRequest,
   ): Promise<SellerResult> {
-    const mismatch = this.bindingMismatchField(stored, incoming);
-    if (mismatch) {
-      return {
-        httpStatus: 409,
-        code: "authorization_binding_mismatch",
-        body: { field: mismatch },
-        authKey: stored.authKey,
-      };
-    }
-
     // Auto-void check for never-submitted pending rows
     if (stored.paymentState === "submission_pending" && stored.attemptCounter === 0) {
-      const voided = this.ledger.tryAutomaticVoid(stored.authKey, this.nowSec(), this.nowIso());
+      const voided = await this.ledger.withLock(() =>
+        this.ledger.tryAutomaticVoid(stored.authKey, this.nowSec(), this.nowIso()),
+      );
       if (voided) {
         return {
           httpStatus: 409,
@@ -293,7 +272,9 @@ export class SellerEngine {
       }
     }
 
-    const row = this.ledger.getByAuthKey(stored.authKey)!;
+    const row = (await this.ledger.withLock(() =>
+      this.ledger.getByAuthKey(stored.authKey),
+    ))!;
 
     switch (row.paymentState) {
       case "void":
@@ -311,16 +292,17 @@ export class SellerEngine {
         if (row.attemptCounter === 0) {
           return this.submitAndMaybeFulfill(row, req);
         }
-        // Unresolved attempt — treat as uncertain path (rule 4/5)
-        return this.reconcileUncertain(
-          this.ledger.updatePaymentState(
-            row.authKey,
-            "submission_uncertain",
-            {},
-            this.nowIso(),
-          ),
-          req,
-        );
+        {
+          const uncertain = await this.ledger.withLock(() =>
+            this.ledger.updatePaymentState(
+              row.authKey,
+              "submission_uncertain",
+              {},
+              this.nowIso(),
+            ),
+          );
+          return this.reconcileUncertain(uncertain, req);
+        }
       case "accepted":
         return this.fulfillAccepted(row, req);
       default: {
@@ -334,37 +316,37 @@ export class SellerEngine {
     row: LedgerRow,
     req: SellerRequest,
   ): Promise<SellerResult> {
-    // Only one submitter
-    const claimed = this.ledger.claimSubmitter(row.authKey, row.attemptCounter, this.nowIso());
+    const claimed = await this.ledger.withLock(() =>
+      this.ledger.claimSubmitter(row.authKey, row.attemptCounter, this.nowIso()),
+    );
     if (!claimed) {
-      const latest = this.ledger.getByAuthKey(row.authKey)!;
-      if (latest.paymentState === "submission_uncertain" || latest.attemptCounter > 0) {
-        return {
-          httpStatus: 503,
-          code: "payment_submission_unresolved",
-          authKey: latest.authKey,
-        };
-      }
-      return {
-        httpStatus: 503,
-        code: "payment_submission_unresolved",
-        authKey: row.authKey,
-      };
+      const latest = (await this.ledger.withLock(() =>
+        this.ledger.getByAuthKey(row.authKey),
+      ))!;
+      return this.unresolved503(latest.authKey);
     }
 
     const requirements = this.buildRequirements(lookupPrice(this.priceTable, req.path)!);
-    let settleResult: SettleResponse;
+    let settleResult: SettleResponse | null = null;
+    let settleError: unknown = null;
     try {
+      // Network call OUTSIDE ledger lock
       settleResult = await this.gateway.settle(claimed.paymentPayload, requirements);
     } catch (e) {
-      const httpStatus = (e as { httpStatus?: number }).httpStatus;
-      const errorReason = (e as { errorReason?: string }).errorReason;
+      settleError = e;
+    }
+
+    if (settleError) {
+      const httpStatus = (settleError as { httpStatus?: number }).httpStatus;
+      const errorReason = (settleError as { errorReason?: string }).errorReason;
       if (httpStatus === 400) {
-        this.ledger.updatePaymentState(
-          claimed.authKey,
-          "rejected",
-          { gatewayError: errorReason ?? "invalid_payload" },
-          this.nowIso(),
+        await this.ledger.withLock(() =>
+          this.ledger.updatePaymentState(
+            claimed.authKey,
+            "rejected",
+            { gatewayError: errorReason ?? "invalid_payload" },
+            this.nowIso(),
+          ),
         );
         return {
           httpStatus: 402,
@@ -373,122 +355,197 @@ export class SellerEngine {
           gatewayErrorReason: errorReason ?? "invalid_payload",
         };
       }
-      // timeout / drop / empty body → uncertain
-      this.ledger.updatePaymentState(claimed.authKey, "submission_uncertain", {}, this.nowIso());
-      return {
-        httpStatus: 503,
-        code: "payment_submission_unresolved",
-        authKey: claimed.authKey,
-      };
+      // timeout / drop / empty body / HTTP 500 / unexpected transport → uncertain
+      await this.ledger.withLock(() =>
+        this.ledger.updatePaymentState(
+          claimed.authKey,
+          "submission_uncertain",
+          {},
+          this.nowIso(),
+        ),
+      );
+      return this.unresolved503(claimed.authKey);
     }
 
-    if (settleResult.success === true && settleResult.transaction) {
-      const accepted = this.ledger.updatePaymentState(
-        claimed.authKey,
-        "accepted",
-        {
-          gatewayTransferId: settleResult.transaction,
-          gatewayStatus: null,
-        },
-        this.nowIso(),
+    const result = settleResult!;
+
+    // Accepted: success===true AND non-empty transaction
+    if (result.success === true) {
+      if (typeof result.transaction === "string" && result.transaction.length > 0) {
+        const accepted = await this.ledger.withLock(() =>
+          this.ledger.updatePaymentState(
+            claimed.authKey,
+            "accepted",
+            {
+              gatewayTransferId: result.transaction,
+              gatewayStatus: null,
+            },
+            this.nowIso(),
+          ),
+        );
+        return this.fulfillAccepted(accepted, req);
+      }
+      // success:true without transaction → uncertain, NOT definite rejection
+      await this.ledger.withLock(() =>
+        this.ledger.updatePaymentState(
+          claimed.authKey,
+          "submission_uncertain",
+          { gatewayError: "malformed_settle_success_missing_transaction" },
+          this.nowIso(),
+        ),
       );
-      return this.fulfillAccepted(accepted, req);
+      return this.unresolved503(claimed.authKey, "malformed_settle_success_missing_transaction");
     }
 
     // success:false
-    const reason = settleResult.errorReason ?? "unknown";
-    if (reason === "nonce_already_used" || reason === "unexpected_error") {
+    if (result.success === false) {
+      const reason = result.errorReason;
+      if (reason === "nonce_already_used" || reason === "unexpected_error") {
+        await this.ledger.withLock(() =>
+          this.ledger.updatePaymentState(
+            claimed.authKey,
+            "submission_uncertain",
+            { gatewayError: reason },
+            this.nowIso(),
+          ),
+        );
+        return this.unresolved503(claimed.authKey, reason);
+      }
+      if (typeof reason === "string" && reason.length > 0) {
+        // Definite rejection (HTTP 200 success:false with errorReason)
+        await this.ledger.withLock(() =>
+          this.ledger.updatePaymentState(
+            claimed.authKey,
+            "rejected",
+            { gatewayError: reason },
+            this.nowIso(),
+          ),
+        );
+        return {
+          httpStatus: 402,
+          code: "payment_rejected",
+          authKey: claimed.authKey,
+          gatewayErrorReason: reason,
+        };
+      }
+      // success:false without errorReason → uncertain
+      await this.ledger.withLock(() =>
+        this.ledger.updatePaymentState(
+          claimed.authKey,
+          "submission_uncertain",
+          { gatewayError: "malformed_settle_false_missing_errorReason" },
+          this.nowIso(),
+        ),
+      );
+      return this.unresolved503(
+        claimed.authKey,
+        "malformed_settle_false_missing_errorReason",
+      );
+    }
+
+    // Malformed / unexpected settle response shape
+    await this.ledger.withLock(() =>
       this.ledger.updatePaymentState(
         claimed.authKey,
         "submission_uncertain",
-        { gatewayError: reason },
+        { gatewayError: "malformed_settle_response" },
         this.nowIso(),
-      );
-      return {
-        httpStatus: 503,
-        code: "payment_submission_unresolved",
-        authKey: claimed.authKey,
-        gatewayErrorReason: reason,
-      };
-    }
-
-    this.ledger.updatePaymentState(
-      claimed.authKey,
-      "rejected",
-      { gatewayError: reason },
-      this.nowIso(),
+      ),
     );
-    return {
-      httpStatus: 402,
-      code: "payment_rejected",
-      authKey: claimed.authKey,
-      gatewayErrorReason: reason,
-    };
+    return this.unresolved503(claimed.authKey, "malformed_settle_response");
+  }
+
+  /**
+   * Look up a transfer for a row. Failures and ambiguity stay unresolved.
+   * Uses centralized matching — never hits[0] as implicit disambiguation.
+   */
+  private async lookupTransfer(row: LedgerRow): Promise<LookupOutcome> {
+    try {
+      if (row.gatewayTransferId) {
+        const byId = await this.gateway.getTransferById(row.gatewayTransferId);
+        const classified = classifyTransferById(byId, row);
+        if (classified.kind === "match" || classified.kind === "mismatch") {
+          return classified;
+        }
+        // empty by id → fall through to search
+      }
+      const hits = await this.gateway.searchTransfers({
+        nonce: row.nonce,
+        network: row.network,
+      });
+      return classifySearchHits(hits, row);
+    } catch (error) {
+      return { kind: "failed", error };
+    }
   }
 
   private async reconcileUncertain(
     row: LedgerRow,
     req: SellerRequest,
   ): Promise<SellerResult> {
-    // Look up by transfer id if known, else by nonce with explicit network
-    let found: TransferRecord | null = null;
-    if (row.gatewayTransferId) {
-      found = await this.gateway.getTransferById(row.gatewayTransferId);
-    }
-    if (!found) {
-      const hits = await this.gateway.searchTransfers({
-        nonce: row.nonce,
-        network: row.network,
+    const outcome = await this.lookupTransfer(row);
+
+    if (outcome.kind === "match") {
+      const accepted = await this.ledger.withLock(() => {
+        let r = this.ledger.updatePaymentState(
+          row.authKey,
+          "accepted",
+          { gatewayTransferId: outcome.transfer.id },
+          this.nowIso(),
+        );
+        r = this.ledger.applyGatewayStatus(row.authKey, outcome.transfer.status, this.nowIso());
+        return r;
       });
-      found = hits[0] ?? null;
+      return this.fulfillAccepted(accepted, req);
     }
 
-    if (found) {
-      const match =
-        found.nonce.toLowerCase() === row.nonce.toLowerCase() &&
-        found.fromAddress.toLowerCase() === row.payer.toLowerCase() &&
-        found.toAddress.toLowerCase() === row.payTo.toLowerCase() &&
-        found.amount === row.price;
-
-      if (!match) {
+    if (outcome.kind === "mismatch") {
+      await this.ledger.withLock(() =>
         this.ledger.updatePaymentState(
           row.authKey,
           "rejected",
           { gatewayError: "nonce_consumed_elsewhere" },
           this.nowIso(),
-        );
-        return {
-          httpStatus: 402,
-          code: "payment_rejected",
-          authKey: row.authKey,
-          gatewayErrorReason: "nonce_consumed_elsewhere",
-        };
-      }
-
-      let accepted = this.ledger.updatePaymentState(
-        row.authKey,
-        "accepted",
-        { gatewayTransferId: found.id },
-        this.nowIso(),
+        ),
       );
-      accepted = this.ledger.applyGatewayStatus(row.authKey, found.status, this.nowIso());
-      return this.fulfillAccepted(accepted, req);
+      return {
+        httpStatus: 402,
+        code: "payment_rejected",
+        authKey: row.authKey,
+        gatewayErrorReason: "nonce_consumed_elsewhere",
+      };
     }
 
-    // Empty lookup — NOT proof of non-acceptance
+    if (outcome.kind === "failed" || outcome.kind === "ambiguous") {
+      // Fail closed: keep submission_uncertain, flag unresolved, no resubmit/fulfill
+      await this.ledger.withLock(() => {
+        this.ledger.addIncident(row.authKey, "submission_unresolved", this.nowIso());
+        const latest = this.ledger.getByAuthKey(row.authKey)!;
+        if (latest.paymentState !== "submission_uncertain") {
+          this.ledger.updatePaymentState(
+            latest.authKey,
+            "submission_uncertain",
+            {},
+            this.nowIso(),
+          );
+        }
+      });
+      return this.unresolved503(row.authKey);
+    }
+
+    // Empty lookup — NOT proof of non-acceptance. Bounded retry only after
+    // SUCCESSFUL empty lookup, while validity open and attempt cap unspent.
     const windowOpen = this.nowSec() < row.validBefore;
     if (windowOpen && row.attemptCounter < this.config.attemptCap) {
-      // Bounded nonce-deduplicated retry: back to submission_pending
-      this.ledger.updatePaymentState(row.authKey, "submission_pending", {}, this.nowIso());
-      const pending = this.ledger.getByAuthKey(row.authKey)!;
+      const pending = await this.ledger.withLock(() =>
+        this.ledger.updatePaymentState(row.authKey, "submission_pending", {}, this.nowIso()),
+      );
       return this.submitAndMaybeFulfill(pending, req);
     }
 
-    // Unresolved: stay uncertain, flag operator, never void
-    this.ledger.addIncident(row.authKey, "submission_unresolved", this.nowIso());
-    // Ensure still uncertain (never void)
-    const latest = this.ledger.getByAuthKey(row.authKey)!;
-    if (latest.paymentState === "submission_uncertain" || latest.attemptCounter > 0) {
+    await this.ledger.withLock(() => {
+      this.ledger.addIncident(row.authKey, "submission_unresolved", this.nowIso());
+      const latest = this.ledger.getByAuthKey(row.authKey)!;
       if (latest.paymentState !== "submission_uncertain") {
         this.ledger.updatePaymentState(
           latest.authKey,
@@ -497,10 +554,15 @@ export class SellerEngine {
           this.nowIso(),
         );
       }
-    }
+    });
+    return this.unresolved503(row.authKey);
+  }
+
+  private okFromStored(row: LedgerRow): SellerResult {
     return {
-      httpStatus: 503,
-      code: "payment_submission_unresolved",
+      httpStatus: row.storedResponse!.status,
+      code: "ok",
+      body: { data: row.storedResponse!.body, receipt: row.receipt },
       authKey: row.authKey,
     };
   }
@@ -509,134 +571,246 @@ export class SellerEngine {
     row: LedgerRow,
     req: SellerRequest,
   ): Promise<SellerResult> {
-    // Observe gateway status when transfer id known (before fulfill / on retry)
-    if (row.gatewayTransferId) {
-      const t = await this.gateway.getTransferById(row.gatewayTransferId);
-      if (t) {
-        row = this.ledger.applyGatewayStatus(row.authKey, t.status, this.nowIso());
-      }
-    }
-
-    if (row.gatewayStatus === "failed") {
-      if (row.fulfillmentState === "fulfilled") {
-        this.ledger.addIncident(row.authKey, "fulfilled_but_unpaid", this.nowIso());
-        const latest = this.ledger.getByAuthKey(row.authKey)!;
-        return {
-          httpStatus: latest.storedResponse!.status,
-          code: "ok",
-          body: {
-            data: latest.storedResponse!.body,
-            receipt: latest.receipt,
-            incident: "fulfilled_but_unpaid",
-          },
-          authKey: row.authKey,
-        };
-      }
-      return {
-        httpStatus: 402,
-        code: "payment_failed",
-        authKey: row.authKey,
-      };
-    }
-
-    if (row.fulfillmentState === "fulfilled") {
-      const latest = this.ledger.getByAuthKey(row.authKey)!;
-      return {
-        httpStatus: latest.storedResponse!.status,
-        code: "ok",
-        body: { data: latest.storedResponse!.body, receipt: latest.receipt },
-        authKey: row.authKey,
-      };
-    }
-
-    if (row.fulfillmentState === "failed_permanent") {
-      return {
-        httpStatus: 502,
-        code: "paid_unfulfilled",
-        authKey: row.authKey,
-      };
-    }
-
-    const owner = `worker-${++this.workerSeq}`;
-    const leased = this.ledger.takeLease(
-      row.authKey,
-      owner,
-      this.config.leaseMs,
-      this.now().getTime(),
-      this.nowIso(),
-    );
-    if (!leased) {
-      const latest = this.ledger.getByAuthKey(row.authKey)!;
+    // Check fulfillmentState === "fulfilled" BEFORE any Gateway status lookup.
+    // Same-binding fulfilled retry returns stored response even when Gateway is unavailable.
+    {
+      const latest = (await this.ledger.withLock(() =>
+        this.ledger.getByAuthKey(row.authKey),
+      ))!;
       if (latest.fulfillmentState === "fulfilled") {
-        return {
-          httpStatus: latest.storedResponse!.status,
-          code: "ok",
-          body: { data: latest.storedResponse!.body, receipt: latest.receipt },
-          authKey: row.authKey,
-        };
+        // Optionally refresh gateway status for operator metadata, but never alter response.
+        // If Gateway lookup fails, still return stored response.
+        if (latest.gatewayTransferId) {
+          try {
+            const t = await this.gateway.getTransferById(latest.gatewayTransferId);
+            if (t) {
+              const matched = classifyTransferById(t, latest);
+              if (matched.kind === "match") {
+                await this.ledger.withLock(() => {
+                  this.ledger.applyGatewayStatus(
+                    latest.authKey,
+                    matched.transfer.status,
+                    this.nowIso(),
+                  );
+                  if (
+                    matched.transfer.status === "failed" &&
+                    this.ledger.getByAuthKey(latest.authKey)!.fulfillmentState === "fulfilled"
+                  ) {
+                    this.ledger.addIncident(
+                      latest.authKey,
+                      "fulfilled_but_unpaid",
+                      this.nowIso(),
+                    );
+                  }
+                });
+              }
+              // mismatch / unknown: do not mutate; anomaly recorded inside apply if needed
+            }
+          } catch {
+            // Gateway unavailable — still return stored response unchanged
+          }
+        }
+        const fresh = (await this.ledger.withLock(() =>
+          this.ledger.getByAuthKey(row.authKey),
+        ))!;
+        // fulfilled_but_unpaid lives in ledger/operator metadata, NOT in client response body
+        return this.okFromStored(fresh);
       }
-      if (latest.fulfillmentState === "in_progress") {
-        // Waiter path simplified for checkpoint: instruct retry
-        return {
-          httpStatus: 503,
-          code: "upstream_error",
-          body: { reason: "fulfillment_in_progress" },
-          authKey: row.authKey,
-        };
-      }
-      return {
-        httpStatus: 503,
-        code: "upstream_error",
-        authKey: row.authKey,
-      };
-    }
 
-    // Settle-before-fulfill invariant: gateway.settle must already have been called
-    // (attemptCounter >= 1 and payment accepted). Upstream call happens only here.
-    try {
-      const upstream = await this.upstream.fetch({
-        method: "GET",
-        path: req.path,
-        rawQuery: req.rawQuery,
-      });
-
-      if (upstream.status >= 400 && upstream.status < 500) {
-        // Non-retryable upstream after acceptance
-        this.ledger.markFailedPermanent(row.authKey, this.nowIso());
+      if (latest.fulfillmentState === "failed_permanent") {
         return {
           httpStatus: 502,
           code: "paid_unfulfilled",
           authKey: row.authKey,
         };
       }
-      if (upstream.status >= 500) {
-        return this.onRetryableFulfillment(row.authKey, owner);
+
+      // Observe gateway before starting fulfillment (not-yet-fulfilled paths)
+      if (latest.gatewayTransferId) {
+        try {
+          const t = await this.gateway.getTransferById(latest.gatewayTransferId);
+          if (t) {
+            const matched = classifyTransferById(t, latest);
+            if (matched.kind === "match") {
+              row = await this.ledger.withLock(() =>
+                this.ledger.applyGatewayStatus(
+                  latest.authKey,
+                  matched.transfer.status,
+                  this.nowIso(),
+                ),
+              );
+            }
+          }
+        } catch {
+          // lookup failure: proceed without updating status
+        }
       }
 
-      const committed = this.ledger.commitFulfillment(
-        row.authKey,
-        owner,
-        {
-          status: upstream.status,
-          body: upstream.body,
-          contentType: upstream.contentType,
-        },
-        {
+      if (row.gatewayStatus === "failed") {
+        return {
+          httpStatus: 402,
+          code: "payment_failed",
           authKey: row.authKey,
-          gatewayTransferId: row.gatewayTransferId,
-          fingerprint: row.fingerprint,
-          fulfilledAt: this.nowIso(),
-        },
-        this.nowIso(),
+        };
+      }
+    }
+
+    // Wait for in-progress lease holder or take over after expiry
+    const waitDeadline = this.nowMs() + this.config.leaseWaitMs;
+    while (true) {
+      const snapshot = (await this.ledger.withLock(() =>
+        this.ledger.getByAuthKey(row.authKey),
+      ))!;
+
+      if (snapshot.fulfillmentState === "fulfilled") {
+        return this.okFromStored(snapshot);
+      }
+      if (snapshot.fulfillmentState === "failed_permanent") {
+        return {
+          httpStatus: 502,
+          code: "paid_unfulfilled",
+          authKey: row.authKey,
+        };
+      }
+      if (snapshot.gatewayStatus === "failed") {
+        return {
+          httpStatus: 402,
+          code: "payment_failed",
+          authKey: row.authKey,
+        };
+      }
+
+      const owner = randomUUID();
+      const leased = await this.ledger.withLock(() =>
+        this.ledger.takeLease(
+          row.authKey,
+          owner,
+          this.config.leaseMs,
+          this.nowMs(),
+          this.nowIso(),
+        ),
       );
-      if (!committed) {
-        // Stale lease — discard
-        const latest = this.ledger.getByAuthKey(row.authKey)!;
-        if (latest.storedResponse) {
+
+      if (leased) {
+        return this.runFulfillmentUnderLease(leased.row, leased.generation, owner, req);
+      }
+
+      // Could not take lease — another holder is in progress
+      if (this.nowMs() >= waitDeadline) {
+        // One more check for stored result after wait
+        const again = (await this.ledger.withLock(() =>
+          this.ledger.getByAuthKey(row.authKey),
+        ))!;
+        if (again.fulfillmentState === "fulfilled") {
+          return this.okFromStored(again);
+        }
+        // Lease should be expired now; loop once more to take over
+        if (
+          again.fulfillmentState === "in_progress" &&
+          again.leaseExpiresAt !== null &&
+          again.leaseExpiresAt > this.nowMs()
+        ) {
+          // Still held past our wait — return unresolved-style retry for caller
           return {
-            httpStatus: latest.storedResponse.status,
-            code: "ok",
-            body: { data: latest.storedResponse.body, receipt: latest.receipt },
+            httpStatus: 503,
+            code: "upstream_error",
+            body: { reason: "fulfillment_in_progress" },
+            authKey: row.authKey,
+            retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
+          };
+        }
+        // else: expired, loop to take over
+        continue;
+      }
+
+      await sleep(LEASE_POLL_MS);
+    }
+  }
+
+  private async runFulfillmentUnderLease(
+    row: LedgerRow,
+    generation: number,
+    owner: string,
+    req: SellerRequest,
+  ): Promise<SellerResult> {
+    try {
+      // Network call OUTSIDE ledger lock
+      const upstream = await this.upstream.fetch({
+        method: "GET",
+        path: req.path,
+        rawQuery: req.rawQuery,
+      });
+
+      // Only 200-299 may commitFulfillment. Do not follow redirects (fake/abstraction).
+      if (upstream.status >= 200 && upstream.status <= 299) {
+        const committed = await this.ledger.withLock(() =>
+          this.ledger.commitFulfillment(
+            row.authKey,
+            owner,
+            generation,
+            this.nowMs(),
+            {
+              status: upstream.status,
+              body: upstream.body,
+              contentType: upstream.contentType,
+            },
+            {
+              authKey: row.authKey,
+              gatewayTransferId: row.gatewayTransferId,
+              fingerprint: row.fingerprint,
+              fulfilledAt: this.nowIso(),
+            },
+            this.nowIso(),
+          ),
+        );
+        if (!committed) {
+          // Stale / expired lease — discard; return stored if any
+          const latest = (await this.ledger.withLock(() =>
+            this.ledger.getByAuthKey(row.authKey),
+          ))!;
+          if (latest.storedResponse) {
+            return this.okFromStored(latest);
+          }
+          return {
+            httpStatus: 503,
+            code: "upstream_error",
+            body: { reason: "stale_lease" },
+            authKey: row.authKey,
+            retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
+          };
+        }
+        return {
+          httpStatus: upstream.status,
+          code: "ok",
+          body: { data: upstream.body, receipt: committed.receipt },
+          authKey: row.authKey,
+        };
+      }
+
+      // Non-2xx: 5xx / retryable vs permanent 4xx (and other non-2xx like 302)
+      if (upstream.status >= 500) {
+        return this.onRetryableFulfillment(row.authKey, owner, generation);
+      }
+
+      // Non-retryable (4xx, 302, etc.) after acceptance → failed_permanent + paid_unfulfilled
+      const permanent = await this.ledger.withLock(() =>
+        this.ledger.markFailedPermanent(row.authKey, this.nowIso(), {
+          owner,
+          generation,
+          nowMs: this.nowMs(),
+        }),
+      );
+      if (!permanent) {
+        const latest = (await this.ledger.withLock(() =>
+          this.ledger.getByAuthKey(row.authKey),
+        ))!;
+        if (latest.fulfillmentState === "fulfilled") {
+          return this.okFromStored(latest);
+        }
+        if (latest.fulfillmentState === "failed_permanent") {
+          return {
+            httpStatus: 502,
+            code: "paid_unfulfilled",
             authKey: row.authKey,
           };
         }
@@ -645,25 +819,69 @@ export class SellerEngine {
           code: "upstream_error",
           body: { reason: "stale_lease" },
           authKey: row.authKey,
+          retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
         };
       }
       return {
-        httpStatus: upstream.status,
-        code: "ok",
-        body: { data: upstream.body, receipt: committed.receipt },
+        httpStatus: 502,
+        code: "paid_unfulfilled",
         authKey: row.authKey,
       };
     } catch {
-      return this.onRetryableFulfillment(row.authKey, owner);
+      return this.onRetryableFulfillment(row.authKey, owner, generation);
     }
   }
 
-  private onRetryableFulfillment(authKey: string, owner: string): SellerResult {
-    this.ledger.markRetryableFailure(authKey, owner, this.nowIso());
-    const n = (this.fulfillmentAttempts.get(authKey) ?? 0) + 1;
-    this.fulfillmentAttempts.set(authKey, n);
-    if (n >= this.config.fulfillmentRetryBudget) {
-      this.ledger.markFailedPermanent(authKey, this.nowIso());
+  private async onRetryableFulfillment(
+    authKey: string,
+    owner: string,
+    generation: number,
+  ): Promise<SellerResult> {
+    const marked = await this.ledger.withLock(() =>
+      this.ledger.markRetryableFailure(
+        authKey,
+        owner,
+        generation,
+        this.nowMs(),
+        this.nowIso(),
+      ),
+    );
+    // If markRetryableFailure loses CAS, return immediately; never continue into markFailedPermanent
+    if (!marked) {
+      const latest = (await this.ledger.withLock(() =>
+        this.ledger.getByAuthKey(authKey),
+      ))!;
+      if (latest.fulfillmentState === "fulfilled") {
+        return this.okFromStored(latest);
+      }
+      if (latest.fulfillmentState === "failed_permanent") {
+        return {
+          httpStatus: 502,
+          code: "paid_unfulfilled",
+          authKey,
+        };
+      }
+      return {
+        httpStatus: 503,
+        code: "upstream_error",
+        body: { reason: "stale_lease" },
+        authKey,
+        retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
+      };
+    }
+
+    const countExceeded = marked.fulfillmentAttemptCount >= this.config.fulfillmentRetryBudget;
+    let timeExceeded = false;
+    if (marked.fulfillmentFirstAttemptAt) {
+      const first = Date.parse(marked.fulfillmentFirstAttemptAt);
+      if (Number.isFinite(first)) {
+        timeExceeded = this.nowMs() - first >= this.config.fulfillmentRetryBudgetMs;
+      }
+    }
+    if (countExceeded || timeExceeded) {
+      await this.ledger.withLock(() =>
+        this.ledger.markFailedPermanent(authKey, this.nowIso()),
+      );
       return {
         httpStatus: 502,
         code: "paid_unfulfilled",
@@ -675,40 +893,46 @@ export class SellerEngine {
       code: "upstream_error",
       body: { reason: "retryable_failure" },
       authKey,
+      retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
     };
   }
 
   /**
-   * Periodic observation helper (not a batch worker). Copies Gateway status forward.
+   * Periodic observation helper (not a batch worker). Copies Gateway status forward
+   * only via centralized matching. Unknown/backward → anomaly, no mutation.
    */
   async observeTransfer(authKey: string): Promise<LedgerRow | null> {
-    return this.ledger.withLock(async () => {
-      const row = this.ledger.getByAuthKey(authKey);
-      if (!row || row.paymentState !== "accepted") return row ?? null;
-      let found: TransferRecord | null = null;
-      if (row.gatewayTransferId) {
-        found = await this.gateway.getTransferById(row.gatewayTransferId);
-      }
-      if (!found) {
-        const hits = await this.gateway.searchTransfers({
-          nonce: row.nonce,
-          network: row.network,
-        });
-        found = hits[0] ?? null;
-      }
-      if (!found) return row;
+    const row = await this.ledger.withLock(() => this.ledger.getByAuthKey(authKey));
+    if (!row || row.paymentState !== "accepted") return row ?? null;
 
-      let updated = this.ledger.applyGatewayStatus(authKey, found.status, this.nowIso());
-      if (found.status === "failed" && updated.fulfillmentState === "fulfilled") {
+    const outcome = await this.lookupTransfer(row);
+    if (outcome.kind !== "match") {
+      // failed / ambiguous / empty / mismatch: never apply a mismatched transfer's status
+      return row;
+    }
+
+    return this.ledger.withLock(() => {
+      let updated = this.ledger.applyGatewayStatus(
+        authKey,
+        outcome.transfer.status,
+        this.nowIso(),
+      );
+      if (
+        outcome.transfer.status === "failed" &&
+        updated.fulfillmentState === "fulfilled"
+      ) {
         updated = this.ledger.addIncident(authKey, "fulfilled_but_unpaid", this.nowIso());
       }
       return updated;
     });
   }
 
-  /** Exported for tests / docs — settlement helpers. */
   static isLocallySettled = isLocallySettled;
   static isDirectBatchingEvidence = isDirectBatchingEvidence;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 export { AuthKeyError, isLocallySettled, isDirectBatchingEvidence };

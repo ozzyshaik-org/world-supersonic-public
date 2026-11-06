@@ -9,7 +9,7 @@ import type {
   StoredResponse,
   Receipt,
 } from "../types.js";
-import { gatewayStatusRank } from "../types.js";
+import { gatewayStatusRank, isKnownGatewayStatus } from "../types.js";
 
 export class LedgerConflictError extends Error {
   constructor(message: string) {
@@ -23,7 +23,7 @@ export class MemoryLedger {
   private byNonce = new Map<string, string>(); // nonce -> authKey
   private mutex = Promise.resolve();
 
-  /** Run exclusive critical section. */
+  /** Run exclusive critical section. Callers must NOT hold this across network I/O. */
   async withLock<T>(fn: () => Promise<T> | T): Promise<T> {
     let release!: () => void;
     const next = new Promise<void>((r) => {
@@ -70,12 +70,16 @@ export class MemoryLedger {
       attemptCounter: 0,
       attemptAt: null,
       leaseOwner: null,
+      leaseGeneration: 0,
       leaseExpiresAt: null,
+      fulfillmentAttemptCount: 0,
+      fulfillmentFirstAttemptAt: null,
       storedResponse: null,
       receipt: null,
       gatewayTransferId: null,
       gatewayError: null,
       incidents: [],
+      anomalies: [],
       paymentPayload,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -124,24 +128,49 @@ export class MemoryLedger {
   }
 
   /**
-   * Copy gateway_status forward only. Anomalous backward moves are recorded
-   * as incidents and do not change stored status.
+   * Copy gateway_status forward only. Unknown or backward statuses do NOT mutate
+   * gateway_status; they are recorded as operator-visible anomalies.
    */
-  applyGatewayStatus(authKey: string, status: GatewayStatus, nowIso: string): LedgerRow {
+  applyGatewayStatus(authKey: string, status: unknown, nowIso: string): LedgerRow {
     const row = this.require(authKey);
+    if (!isKnownGatewayStatus(status)) {
+      this.recordAnomalyUnlocked(
+        row,
+        `unknown_gateway_status:${String(status)}`,
+      );
+      row.updatedAt = nowIso;
+      return cloneRow(row);
+    }
     const current = row.gatewayStatus;
-    if (current === null || gatewayStatusRank(status) >= gatewayStatusRank(current)) {
-      // failed can be applied even from completed? Spec: status only moves forward.
-      // Treat failed as a terminal side branch: allow if not already completed/failed,
-      // or always allow failed when observed (Circle says failed = never charged).
-      if (current === "completed" && status !== "completed") {
-        // anomaly — do not move backwards from completed
-        row.updatedAt = nowIso;
-        return cloneRow(row);
+    if (current === null) {
+      row.gatewayStatus = status;
+      row.updatedAt = nowIso;
+      return cloneRow(row);
+    }
+    // Never move backwards from completed.
+    if (current === "completed" && status !== "completed") {
+      this.recordAnomalyUnlocked(
+        row,
+        `backward_gateway_status:${current}->${status}`,
+      );
+      row.updatedAt = nowIso;
+      return cloneRow(row);
+    }
+    // failed is a terminal side-branch: allow from non-completed/non-failed.
+    if (status === "failed") {
+      if (current !== "failed") {
+        row.gatewayStatus = "failed";
       }
+      row.updatedAt = nowIso;
+      return cloneRow(row);
+    }
+    if (gatewayStatusRank(status) >= gatewayStatusRank(current)) {
       row.gatewayStatus = status;
     } else if (status !== current) {
-      // anomaly: ignore backward move
+      this.recordAnomalyUnlocked(
+        row,
+        `backward_gateway_status:${current}->${status}`,
+      );
     }
     row.updatedAt = nowIso;
     return cloneRow(row);
@@ -154,9 +183,17 @@ export class MemoryLedger {
     return cloneRow(row);
   }
 
+  recordAnomaly(authKey: string, message: string, nowIso: string): LedgerRow {
+    const row = this.require(authKey);
+    this.recordAnomalyUnlocked(row, message);
+    row.updatedAt = nowIso;
+    return cloneRow(row);
+  }
+
   /**
    * Take fulfillment lease if payment accepted and gateway not failed and
    * fulfillment is not_started or retryable_failure (or expired in_progress).
+   * Owner must be a cryptographically unique identity; generation is incremented.
    */
   takeLease(
     authKey: string,
@@ -164,7 +201,7 @@ export class MemoryLedger {
     leaseMs: number,
     nowMs: number,
     nowIso: string,
-  ): LedgerRow | null {
+  ): { row: LedgerRow; generation: number } | null {
     const row = this.require(authKey);
     if (row.paymentState !== "accepted") return null;
     if (row.gatewayStatus === "failed") return null;
@@ -173,29 +210,41 @@ export class MemoryLedger {
     }
     if (row.fulfillmentState === "in_progress") {
       if (row.leaseExpiresAt !== null && row.leaseExpiresAt > nowMs) return null;
-      // lease expired → treat as takeover from retryable
+      // lease expired → takeover
     }
     row.fulfillmentState = "in_progress";
     row.leaseOwner = owner;
+    row.leaseGeneration += 1;
     row.leaseExpiresAt = nowMs + leaseMs;
+    if (row.fulfillmentAttemptCount === 0) {
+      row.fulfillmentFirstAttemptAt = nowIso;
+    }
+    row.fulfillmentAttemptCount += 1;
     row.updatedAt = nowIso;
-    return cloneRow(row);
+    return { row: cloneRow(row), generation: row.leaseGeneration };
   }
 
   /**
-   * Commit fulfillment under lease fencing. Stale workers cannot overwrite.
+   * Commit fulfillment under lease fencing. Checks owner, generation, and that
+   * the lease has not expired. Stale / expired workers cannot overwrite.
    */
   commitFulfillment(
     authKey: string,
     owner: string,
+    generation: number,
+    nowMs: number,
     response: StoredResponse,
     receipt: Receipt,
     nowIso: string,
   ): LedgerRow | null {
     const row = this.require(authKey);
     if (row.leaseOwner !== owner) return null;
+    if (row.leaseGeneration !== generation) return null;
     if (row.fulfillmentState !== "in_progress") return null;
+    if (row.leaseExpiresAt !== null && row.leaseExpiresAt <= nowMs) return null;
     if (row.storedResponse !== null) return null;
+    // Only 2xx may be committed by the engine; ledger still accepts the stored
+    // response object but callers must enforce the 2xx rule before calling.
     row.fulfillmentState = "fulfilled";
     row.storedResponse = response;
     row.receipt = receipt;
@@ -205,10 +254,18 @@ export class MemoryLedger {
     return cloneRow(row);
   }
 
-  markRetryableFailure(authKey: string, owner: string, nowIso: string): LedgerRow | null {
+  markRetryableFailure(
+    authKey: string,
+    owner: string,
+    generation: number,
+    nowMs: number,
+    nowIso: string,
+  ): LedgerRow | null {
     const row = this.require(authKey);
     if (row.leaseOwner !== owner) return null;
+    if (row.leaseGeneration !== generation) return null;
     if (row.fulfillmentState !== "in_progress") return null;
+    if (row.leaseExpiresAt !== null && row.leaseExpiresAt <= nowMs) return null;
     row.fulfillmentState = "retryable_failure";
     row.leaseOwner = null;
     row.leaseExpiresAt = null;
@@ -216,8 +273,32 @@ export class MemoryLedger {
     return cloneRow(row);
   }
 
-  markFailedPermanent(authKey: string, nowIso: string): LedgerRow {
+  /**
+   * Lease-fenced permanent failure. Requires matching owner+generation and a
+   * still-valid in_progress lease (or allows transition from retryable_failure
+   * when called without fencing for budget exhaustion after a lost CAS — the
+   * engine must only call the unfenced path while holding no competing lease).
+   */
+  markFailedPermanent(
+    authKey: string,
+    nowIso: string,
+    fence?: { owner: string; generation: number; nowMs: number },
+  ): LedgerRow | null {
     const row = this.require(authKey);
+    if (fence) {
+      if (row.leaseOwner !== fence.owner) return null;
+      if (row.leaseGeneration !== fence.generation) return null;
+      if (row.fulfillmentState !== "in_progress") return null;
+      if (row.leaseExpiresAt !== null && row.leaseExpiresAt <= fence.nowMs) return null;
+    } else {
+      // Budget exhaustion path after markRetryableFailure succeeded: row is retryable_failure.
+      if (
+        row.fulfillmentState !== "retryable_failure" &&
+        row.fulfillmentState !== "in_progress"
+      ) {
+        return null;
+      }
+    }
     row.fulfillmentState = "failed_permanent";
     row.leaseOwner = null;
     row.leaseExpiresAt = null;
@@ -237,9 +318,6 @@ export class MemoryLedger {
     return cloneRow(row);
   }
 
-  /**
-   * Explicitly refuse submission_uncertain → void (test helper / invariant).
-   */
   canAutomaticVoid(row: LedgerRow, nowSec: number): boolean {
     return (
       row.paymentState === "submission_pending" &&
@@ -257,12 +335,17 @@ export class MemoryLedger {
   private addIncidentUnlocked(row: LedgerRow, flag: IncidentFlag): void {
     if (!row.incidents.includes(flag)) row.incidents.push(flag);
   }
+
+  private recordAnomalyUnlocked(row: LedgerRow, message: string): void {
+    if (!row.anomalies.includes(message)) row.anomalies.push(message);
+  }
 }
 
 function cloneRow(row: LedgerRow): LedgerRow {
   return {
     ...row,
     incidents: [...row.incidents],
+    anomalies: [...row.anomalies],
     storedResponse: row.storedResponse ? { ...row.storedResponse } : null,
     receipt: row.receipt ? { ...row.receipt } : null,
     paymentPayload: structuredClone(row.paymentPayload),
