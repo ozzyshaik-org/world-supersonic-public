@@ -1,0 +1,44 @@
+{
+  "name": "@world-supersonic/x402-seller",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Off-chain x402 seller for World Supersonic: Arc Testnet USDC via Circle Gateway (first checkpoint).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "dependencies": {
+    "@x402/evm": "^2.3.0"
+  },
+  "peerDependencies": {
+    "@x402/core": "^2.3.0",
+    "@x402/evm": "^2.3.0",
+    "viem": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@x402/core": { "optional": true },
+    "@x402/evm": { "optional": true },
+    "viem": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  },
+  "optionalDependencies": {
+    "@circle-fin/x402-batching": "^4.0.0",
+    "@x402/core": "^2.3.0",
+    "viem": "^2.39.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
