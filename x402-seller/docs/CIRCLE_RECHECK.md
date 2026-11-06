@@ -33,3 +33,25 @@ This package still makes **no live** Circle / Arc Testnet calls.
 - No live `BatchFacilitatorClient` construction
 - No live settle / verify / transfer lookup against Circle or Arc Testnet
 - No verified end-to-end Gateway integration
+
+## HTTP adapter wire shapes (2026-11-06 follow-up)
+
+Sources: Circle [x402 concepts](https://developers.circle.com/gateway/nanopayments/concepts/x402)
+(PAYMENT-REQUIRED / PAYMENT-SIGNATURE / PAYMENT-RESPONSE), Circle seller
+quickstart body `{ x402Version: 2, accepts: [...] }`, x402 transports-v2/http.md
+(canonical PAYMENT-REQUIRED is base64 header).
+
+Implemented locally:
+
+- Request: `PAYMENT-SIGNATURE` = base64(JSON PaymentPayload v2 with `accepted`)
+- 402 response: `PAYMENT-REQUIRED` base64 header **and** JSON body
+  `{ x402Version: 2, accepts: [PaymentRequirements] }`
+- Success / definite reject: `PAYMENT-RESPONSE` base64 of a SettleResponse-like
+  object `{ success, transaction, errorReason? }`
+
+### Still UNRESOLVED for PAYMENT-RESPONSE
+
+Full SettlementResponse resource / network / payer extensions beyond the
+SettleResponse fields this package already models are **not** claimed as
+verified against a pinned official schema dump in this repo. The adapter emits
+the SettleResponse-shaped subset available from the engine result / receipt.

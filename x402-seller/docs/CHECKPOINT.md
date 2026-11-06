@@ -92,3 +92,26 @@ No live Arc / Circle behaviour has been verified at this checkpoint.
 - Arc Studio project / UI
 - Real HTTP adapter / public deploy / durable store (follow-up work)
 - IDKit, Agent Pass, ENS, pstack formal verification
+
+## Follow-up: experimental local HTTP adapter (`feat/x402-http-adapter`)
+
+Thin `node:http` adapter around `SellerEngine` (not live Arc evidence):
+
+- Real HTTP 402 with `PAYMENT-REQUIRED` (base64) + JSON `{ x402Version, accepts }`
+- `PAYMENT-SIGNATURE` parse; malformed → 400 before Gateway/upstream
+- `Retry-After` on unresolved / retryable 503
+- `HttpUpstreamClient`: `redirect: "manual"`, AbortController timeout, server-side
+  `X-API-Key` only
+- Allowlisted paid route only (`/v1/mev/analytics` by default); no generic proxy
+- Same-binding stored-response replay over HTTP
+
+### Local HTTP evidence labels
+
+| Suite | Label |
+| --- | --- |
+| `test/httpAdapter.local-http-integration.test.ts` | **local-http-integration + unit-fake Gateway** |
+| `test/httpHeaders.test.ts` | unit-fake |
+| `test/httpPaymentHeader.property.test.ts` | unit-fake (fast-check) |
+
+**NOT_RUN / MISSING:** live Gateway, Arc Testnet, batching, settlement `completed`,
+Arc Studio, public deploy, durable store, IDKit / Agent Pass / ENS.
