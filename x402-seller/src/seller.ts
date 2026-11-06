@@ -121,6 +121,15 @@ export class SellerEngine {
     return this.now().getTime();
   }
 
+  /**
+   * Wall-clock ms for lease expiry / takeover. Lease fencing must advance with
+   * real time so waiters sleeping outside the mutex can observe expiry even when
+   * the injectable business clock is frozen in tests.
+   */
+  wallClockMs(): number {
+    return Date.now();
+  }
+
   private terms() {
     return {
       network: this.config.network,
@@ -655,8 +664,9 @@ export class SellerEngine {
       }
     }
 
-    // Wait for in-progress lease holder or take over after expiry
-    const waitDeadline = this.nowMs() + this.config.leaseWaitMs;
+    // Wait for in-progress lease holder or take over after expiry.
+    // Never return upstream_error merely because another caller holds the lease:
+    // waiters poll outside the mutex until a stored result appears or the lease expires.
     while (true) {
       const snapshot = (await this.ledger.withLock(() =>
         this.ledger.getByAuthKey(row.authKey),
@@ -686,7 +696,7 @@ export class SellerEngine {
           row.authKey,
           owner,
           this.config.leaseMs,
-          this.nowMs(),
+          this.wallClockMs(),
           this.nowIso(),
         ),
       );
@@ -695,39 +705,75 @@ export class SellerEngine {
         return this.runFulfillmentUnderLease(leased.row, leased.generation, owner, req);
       }
 
-      // Could not take lease — another holder is in progress
-      if (this.nowMs() >= waitDeadline) {
-        // One more check for stored result after wait
-        const again = (await this.ledger.withLock(() =>
-          this.ledger.getByAuthKey(row.authKey),
-        ))!;
-        if (again.fulfillmentState === "fulfilled") {
-          return this.okFromStored(again);
-        }
-        // Lease should be expired now; loop once more to take over
-        if (
-          again.fulfillmentState === "in_progress" &&
-          again.leaseExpiresAt !== null &&
-          again.leaseExpiresAt > this.nowMs()
-        ) {
-          // Still held past our wait — return unresolved-style retry for caller
-          return {
-            httpStatus: 503,
-            code: "upstream_error",
-            body: { reason: "fulfillment_in_progress" },
-            authKey: row.authKey,
-            retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
-          };
-        }
-        // else: expired, loop to take over
+      // Another holder has a still-valid lease — sleep outside the mutex, then re-check.
+      const again = (await this.ledger.withLock(() =>
+        this.ledger.getByAuthKey(row.authKey),
+      ))!;
+      if (again.fulfillmentState === "fulfilled") {
+        return this.okFromStored(again);
+      }
+      const expiresAt = again.leaseExpiresAt;
+      const nowWall = this.wallClockMs();
+      if (
+        again.fulfillmentState === "in_progress" &&
+        expiresAt !== null &&
+        expiresAt > nowWall
+      ) {
+        const sleepMs = Math.min(LEASE_POLL_MS, Math.max(1, expiresAt - nowWall));
+        await sleep(sleepMs);
         continue;
       }
-
+      // Lease expired (or no expiry recorded) — loop to take over.
       await sleep(LEASE_POLL_MS);
     }
   }
 
+  /**
+   * After a stale/expired worker loses CAS, wait for the peer lease holder to
+   * store a result (or for a permanent failure). Used so concurrent same-binding
+   * callers receive the identical successful stored response.
+   */
+  private async waitForPeerResult(authKey: string): Promise<SellerResult> {
+    const deadline =
+      this.wallClockMs() + this.config.leaseMs + this.config.leaseWaitMs + 5_000;
+    while (this.wallClockMs() < deadline) {
+      const latest = (await this.ledger.withLock(() =>
+        this.ledger.getByAuthKey(authKey),
+      ))!;
+      if (latest.fulfillmentState === "fulfilled" && latest.storedResponse) {
+        return this.okFromStored(latest);
+      }
+      if (latest.fulfillmentState === "failed_permanent") {
+        return {
+          httpStatus: 502,
+          code: "paid_unfulfilled",
+          authKey,
+        };
+      }
+      if (latest.gatewayStatus === "failed" && latest.fulfillmentState !== "fulfilled") {
+        return {
+          httpStatus: 402,
+          code: "payment_failed",
+          authKey,
+        };
+      }
+      await sleep(LEASE_POLL_MS);
+    }
+    const final = (await this.ledger.withLock(() => this.ledger.getByAuthKey(authKey)))!;
+    if (final.fulfillmentState === "fulfilled" && final.storedResponse) {
+      return this.okFromStored(final);
+    }
+    return {
+      httpStatus: 503,
+      code: "upstream_error",
+      body: { reason: "peer_fulfillment_timeout" },
+      authKey,
+      retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
+    };
+  }
+
   private async runFulfillmentUnderLease(
+
     row: LedgerRow,
     generation: number,
     owner: string,
@@ -748,7 +794,7 @@ export class SellerEngine {
             row.authKey,
             owner,
             generation,
-            this.nowMs(),
+            this.wallClockMs(),
             {
               status: upstream.status,
               body: upstream.body,
@@ -764,20 +810,8 @@ export class SellerEngine {
           ),
         );
         if (!committed) {
-          // Stale / expired lease — discard; return stored if any
-          const latest = (await this.ledger.withLock(() =>
-            this.ledger.getByAuthKey(row.authKey),
-          ))!;
-          if (latest.storedResponse) {
-            return this.okFromStored(latest);
-          }
-          return {
-            httpStatus: 503,
-            code: "upstream_error",
-            body: { reason: "stale_lease" },
-            authKey: row.authKey,
-            retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
-          };
+          // Stale / expired lease — discard upstream result; wait for peer stored response
+          return this.waitForPeerResult(row.authKey);
         }
         return {
           httpStatus: upstream.status,
@@ -797,30 +831,12 @@ export class SellerEngine {
         this.ledger.markFailedPermanent(row.authKey, this.nowIso(), {
           owner,
           generation,
-          nowMs: this.nowMs(),
+          nowMs: this.wallClockMs(),
         }),
       );
       if (!permanent) {
-        const latest = (await this.ledger.withLock(() =>
-          this.ledger.getByAuthKey(row.authKey),
-        ))!;
-        if (latest.fulfillmentState === "fulfilled") {
-          return this.okFromStored(latest);
-        }
-        if (latest.fulfillmentState === "failed_permanent") {
-          return {
-            httpStatus: 502,
-            code: "paid_unfulfilled",
-            authKey: row.authKey,
-          };
-        }
-        return {
-          httpStatus: 503,
-          code: "upstream_error",
-          body: { reason: "stale_lease" },
-          authKey: row.authKey,
-          retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
-        };
+        // Lost fence — do not apply permanent failure; await peer outcome
+        return this.waitForPeerResult(row.authKey);
       }
       return {
         httpStatus: 502,
@@ -842,32 +858,14 @@ export class SellerEngine {
         authKey,
         owner,
         generation,
-        this.nowMs(),
+        this.wallClockMs(),
         this.nowIso(),
       ),
     );
-    // If markRetryableFailure loses CAS, return immediately; never continue into markFailedPermanent
+    // If markRetryableFailure loses CAS, do not continue into markFailedPermanent.
+    // Await the peer's stored/terminal outcome so concurrent callers still converge.
     if (!marked) {
-      const latest = (await this.ledger.withLock(() =>
-        this.ledger.getByAuthKey(authKey),
-      ))!;
-      if (latest.fulfillmentState === "fulfilled") {
-        return this.okFromStored(latest);
-      }
-      if (latest.fulfillmentState === "failed_permanent") {
-        return {
-          httpStatus: 502,
-          code: "paid_unfulfilled",
-          authKey,
-        };
-      }
-      return {
-        httpStatus: 503,
-        code: "upstream_error",
-        body: { reason: "stale_lease" },
-        authKey,
-        retryAfterSeconds: this.config.unresolvedRetryAfterSeconds,
-      };
+      return this.waitForPeerResult(authKey);
     }
 
     const countExceeded = marked.fulfillmentAttemptCount >= this.config.fulfillmentRetryBudget;

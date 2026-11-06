@@ -346,42 +346,91 @@ describe("concurrency, lease fencing, lost-response", () => {
     void advanceMs;
   });
 
-  it("real lease takeover: stale late worker cannot commit", async () => {
+  it("real lease takeover: every caller gets identical ok; stale commits rejected; one stored result", async () => {
     const gateway = new FakeGatewayClient({ settleMode: { kind: "success" } });
     const upstream = new FakeUpstreamClient({ kind: "success" });
-    upstream.armGate();
-    const { engine, ledger, advanceMs } = makeSeller({
+    // Hold only the first upstream read; the takeover worker's read proceeds.
+    upstream.armGate(1);
+    const { engine, ledger } = makeSeller({
       gateway,
       upstream,
-      leaseMs: 30,
-      leaseWaitMs: 500,
+      leaseMs: 40,
+      leaseWaitMs: 2_000,
     });
     const nonce = fakeNonce(381);
     const payment = makePayment({ nonce });
 
     const p1 = engine.handle(makeRequest({ payment }));
-    // Wait until first upstream call is gated
-    await new Promise((r) => setTimeout(r, 20));
-    advanceMs(100); // expire lease
-    // Second caller takes over
-    const upstream2 = upstream; // same fake; release gate so both proceed
-    void upstream2;
-    upstream.releaseGate();
+    await upstream.whenCalls(1);
+
+    // Expire the first worker's lease via wall-clock (lease fencing uses Date.now()).
+    const rowMid = ledger.getByNonce(nonce)!;
+    const internal = (
+      ledger as unknown as { byAuthKey: Map<string, typeof rowMid> }
+    ).byAuthKey.get(rowMid.authKey)!;
+    const staleOwner = internal.leaseOwner!;
+    const staleGeneration = internal.leaseGeneration;
+    internal.leaseExpiresAt = Date.now() - 1;
+
+    // Takeover caller starts while first upstream is still gated.
     const p2 = engine.handle(makeRequest({ payment }));
+    // Allow the takeover worker to fetch upstream (gate holds only first call).
+    await upstream.whenCalls(2);
+    // Release the stale worker's gated upstream so it finishes late.
+    upstream.releaseGate();
+
     const [r1, r2] = await Promise.all([p1, p2]);
-    // At least one ok; both should eventually see same stored or one stale
-    const oks = [r1, r2].filter((r) => r.code === "ok");
-    expect(oks.length).toBeGreaterThanOrEqual(1);
+    expect(r1.code).toBe("ok");
+    expect(r2.code).toBe("ok");
+    expect(JSON.stringify(r1.body)).toBe(JSON.stringify(r2.body));
     expect(gateway.settleCalls).toHaveLength(1);
+    // Takeover may re-read upstream; at most one logical stored fulfillment.
+    expect(upstream.calls.length).toBeGreaterThanOrEqual(1);
+    expect(upstream.calls.length).toBeLessThanOrEqual(2);
+
     const row = ledger.getByNonce(nonce)!;
-    expect(row.fulfillmentState === "fulfilled" || row.fulfillmentState === "retryable_failure" || row.fulfillmentState === "failed_permanent" || row.fulfillmentState === "in_progress").toBe(true);
-    // Exactly one stored response if fulfilled
-    if (row.fulfillmentState === "fulfilled") {
-      expect(row.storedResponse).not.toBeNull();
-    }
+    expect(row.fulfillmentState).toBe("fulfilled");
+    expect(row.storedResponse).not.toBeNull();
+
+    // Stale worker fencing: commit / markRetryable / markFailedPermanent all rejected
+    expect(
+      ledger.commitFulfillment(
+        row.authKey,
+        staleOwner,
+        staleGeneration,
+        Date.now(),
+        { status: 200, body: { evil: "stale" }, contentType: "application/json" },
+        {
+          authKey: row.authKey,
+          gatewayTransferId: row.gatewayTransferId,
+          fingerprint: row.fingerprint,
+          fulfilledAt: new Date().toISOString(),
+        },
+        new Date().toISOString(),
+      ),
+    ).toBeNull();
+    expect(
+      ledger.markRetryableFailure(
+        row.authKey,
+        staleOwner,
+        staleGeneration,
+        Date.now(),
+        new Date().toISOString(),
+      ),
+    ).toBeNull();
+    expect(
+      ledger.markFailedPermanent(row.authKey, new Date().toISOString(), {
+        owner: staleOwner,
+        generation: staleGeneration,
+        nowMs: Date.now(),
+      }),
+    ).toBeNull();
+    expect(ledger.getByAuthKey(row.authKey)!.storedResponse?.body).not.toMatchObject({
+      evil: "stale",
+    });
   });
 
-  it("two SellerEngine instances sharing one ledger use unique fencing", async () => {
+  it("two SellerEngine instances sharing one ledger: identical successful responses", async () => {
     const gateway = new FakeGatewayClient({ settleMode: { kind: "success" } });
     const upstream = new FakeUpstreamClient({ kind: "success" });
     const ledger = new MemoryLedger();
@@ -392,7 +441,7 @@ describe("concurrency, lease fencing, lost-response", () => {
       verifyingContract: FIXTURE_VERIFYING,
       clock: () => new Date(1_800_000_000_000),
       leaseMs: 1_000,
-      leaseWaitMs: 1_000,
+      leaseWaitMs: 2_000,
       fulfillmentRetryBudget: 5,
     };
     const a = new SellerEngine({ gateway, upstream, ledger, config: cfg });
@@ -406,6 +455,8 @@ describe("concurrency, lease fencing, lost-response", () => {
     expect(r2.code).toBe("ok");
     expect(JSON.stringify(r1.body)).toBe(JSON.stringify(r2.body));
     expect(gateway.settleCalls).toHaveLength(1);
+    expect(ledger.getByNonce(fakeNonce(382))!.fulfillmentState).toBe("fulfilled");
+    expect(ledger.getByNonce(fakeNonce(382))!.storedResponse).not.toBeNull();
   });
 
   it("expired lease is not commit-eligible even without takeover", async () => {

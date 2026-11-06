@@ -22,16 +22,23 @@ export class FakeUpstreamClient implements UpstreamClient {
   mode: FakeUpstreamMode;
   modeOnce: FakeUpstreamMode | null = null;
   private sequenceIndex = 0;
-  /** Barrier for lost-response / concurrent tests: resolves after Nth call starts. */
-  gate: Promise<void> | null = null;
+  /** When set, the next `holdCount` fetches await releaseGate(). */
+  private gate: Promise<void> | null = null;
   private gateResolve: (() => void) | null = null;
+  private holdCount = 0;
+  /** Resolves when the Nth fetch has entered the gate (1-based). */
+  private enteredResolvers: Array<() => void> = [];
 
   constructor(mode: FakeUpstreamMode = { kind: "success" }) {
     this.mode = mode;
   }
 
-  /** Hold the next fetch until releaseGate() is called. */
-  armGate(): void {
+  /**
+   * Hold the next `count` fetch calls until releaseGate() is called.
+   * Subsequent fetches after `count` proceed immediately (for takeover workers).
+   */
+  armGate(count = 1): void {
+    this.holdCount = count;
     this.gate = new Promise((r) => {
       this.gateResolve = r;
     });
@@ -41,13 +48,35 @@ export class FakeUpstreamClient implements UpstreamClient {
     this.gateResolve?.();
     this.gate = null;
     this.gateResolve = null;
+    this.holdCount = 0;
+  }
+
+  /** Wait until at least `n` fetch calls have started (including gated ones). */
+  whenCalls(n: number): Promise<void> {
+    if (this.calls.length >= n) return Promise.resolve();
+    return new Promise((resolve) => {
+      this.enteredResolvers.push(() => {
+        if (this.calls.length >= n) resolve();
+      });
+      // Also poll in case a call landed between check and push
+      const iv = setInterval(() => {
+        if (this.calls.length >= n) {
+          clearInterval(iv);
+          resolve();
+        }
+      }, 5);
+    });
   }
 
   async fetch(req: UpstreamRequest): Promise<UpstreamResponse> {
     this.calls.push(req);
-    if (this.gate) {
+    for (const r of this.enteredResolvers) r();
+
+    if (this.gate && this.holdCount > 0) {
+      this.holdCount -= 1;
       await this.gate;
     }
+
     let mode = this.modeOnce ?? this.mode;
     this.modeOnce = null;
 
@@ -89,7 +118,6 @@ export class FakeUpstreamClient implements UpstreamClient {
           contentType: "application/json",
         };
       case "redirect":
-        // redirect:'manual' — surface 302 without following
         return {
           status: mode.status ?? 302,
           body: { location: mode.location ?? "https://example.invalid/elsewhere" },
