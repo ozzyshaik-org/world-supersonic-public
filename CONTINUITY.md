@@ -111,12 +111,27 @@ recorded in `HACKATHON_LOG.md`. The tag must never be moved or backdated. Histor
 Variant B, merge commit `cb39dbb` is event-period administrative/documentation from PR #21; commits after the start tag
 are event work, subject to their actual content and timestamps.
 
-The committed scope—specifications only, not yet implemented—is four features, each with a definition of done, in scope order:
+The committed specifications remain four features, each with a definition of done, in scope order (specifications only until implemented):
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc (core priority).
 2. **World ID gating with IDKit**: one active self-service free-tier key per action-scoped nullifier (core priority).
 3. **World ID Agent Pass: human checkpoint for one paid or elevated agent data request** (third priority): attempted after the Arc and IDKit flows are complete end to end, with their demos, tests and evidence. See [`docs/hackathon/04-agent-pass.md`](docs/hackathon/04-agent-pass.md). Agent Pass approval never replaces Arc/x402 payment.
 4. **ENS name inputs for `/v1/balance` and `/v1/transactions`** (fourth priority): attempted after the Arc, IDKit and Agent Pass flows are complete and evidenced. See [`docs/hackathon/03-ens-integration.md`](docs/hackathon/03-ens-integration.md).
+
+### Frozen submission slice (6 Nov 2026)
+
+Event implementation is **frozen** to one vertical slice until that slice and its evidence are complete:
+
+**Arc Studio UI → real HTTP seller → Circle Gateway / Arc Testnet → existing Go API `/v1/mev/analytics` → stored response/receipt → SGIP graph for the same investigated World Chain `tx_hash`.**
+
+Rules for this freeze:
+
+- The **Arc payment** transaction/transfer ID is always **separate** from the investigated World Chain `tx_hash`.
+- Draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) head `f79de2f36b8a07371b072398ea1e2657775c3a2f` is an **experimental seller-engine checkpoint** only (unit-fake / contract-real-local).
+- Draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) head `b03d41ee7831dedc356590fd9170e5fec82f7afd` adds a thin **local HTTP adapter** with `local-http-integration` + unit-fake Gateway evidence (137/137). It is still not live Arc/Circle, not Studio, not a durable store, and not a public demo.
+- **IDKit, Agent Pass, ENS, other partners, and pstack formal verification** are **deferred, not started**, until the functional paid `/v1/mev/analytics` flow and its evidence are complete.
+- Do not present `/v1/balance` as a wallet balance.
+- After PR [#22](https://github.com/ozzyshaik-org/world-supersonic-public/pull/22) merges, further docs land by normal incremental commits/merges only (no history rewrite, no force-push, no tag moves, no replacement PRs).
 
 Arkiv and CROPS are uncommitted stretch options, documented in `docs/hackathon/90-stretch-options.md`. They are not part of the committed scope. Only one may be attempted, and only after all four committed flows are complete and evidenced. Uniswap is watchlist-only and is not planned work.
 

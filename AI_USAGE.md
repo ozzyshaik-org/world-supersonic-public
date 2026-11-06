@@ -1,7 +1,7 @@
 # AI usage
 
-Status: baseline and separately identified event-period documentation, based on facts confirmed by the owner. Nothing in this file is guessed. No percentages and
-no per-file claims are made here.
+Status: baseline and separately identified event-period documentation, based on facts confirmed by the owner. Nothing in this file is guessed. No percentages are
+claimed. Per-file / per-part AI attribution below is limited to the event-period `x402-seller/` package at draft PR #23 head `f79de2f`; elsewhere, no complete per-file map is claimed.
 
 This file covers both baseline assistance (everything up to the annotated tag `baseline-pre-ethglobal-mumbai` and the pre-kickoff
 changes merged before the event, as listed in [CONTINUITY.md](CONTINUITY.md)) and separately identified event-period assistance.
@@ -102,4 +102,93 @@ Assets generated during the event (after the tag `ethglobal-mumbai-2026-start` e
 Baseline assistance remains the rows above for work before the official hacking start. Event assistance is recorded separately
 after the tag `ethglobal-mumbai-2026-start` exists and is not backfilled into the baseline area rows. Under Corrected Variant B,
 the first event-period AI-provenance note is the PR #21 merge authorization and limited Kimi static-site check above; further
-event entries will be appended as event work lands.
+event entries are appended below as event work lands (including the `x402-seller/` table in this file).
+
+## Event assistance: experimental x402-seller checkpoint (`f79de2f`)
+
+Scope: draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) head `f79de2f36b8a07371b072398ea1e2657775c3a2f` on branch `feat/arc-x402-seller` (unmerged). Event-built after `ethglobal-mumbai-2026-start`. This is an **experimental seller-engine checkpoint** only.
+
+### Provenance method (what was checked; nothing guessed)
+
+- `git ls-tree -r --name-only f79de2f -- x402-seller/` lists the files in the table below.
+- `git log` authorship for every commit that introduced or changed those files (`5dee2bf`…`f79de2f`) is `ozzyshaik <ozzyshaik@users.noreply.github.com>` only.
+- Commit messages describe the change (scaffold, engine, FAKE Gateway tests, x402 v2 validation, lease fencing, race CAS fix, CI job). They do **not** name Claude, Cursor, Kimi, Copilot or another tool as the producer of these files.
+- Session context for this package: **Grok Bot executor sessions** wrote the code, tests and package docs under owner direction. No other AI tool is recorded in the commit messages for this package; this file does not invent one.
+
+### Per-file / per-part AI attribution (`x402-seller/` at `f79de2f`)
+
+| Path | AI tool that produced this part | Evidence noted |
+|---|---|---|
+| `x402-seller/.env.example` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/.gitignore` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/README.md` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/docs/CIRCLE_RECHECK.md` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/package-lock.json` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/package.json` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/authKey.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/chainConfig.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/fingerprint.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/gateway/circleAdapter.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/gateway/client.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/gateway/fakeGateway.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/index.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/ledger/memoryLedger.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/paymentValidation.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/priceTable.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/seller.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/transferMatch.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/types.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/upstream/client.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/src/upstream/fakeUpstream.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/test/authKey.test.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/test/circleImport.test.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/test/fingerprint.test.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/test/helpers.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/test/leaseRaceBudget.test.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/test/paymentStructure.test.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/test/regressionMatrix.test.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/test/stateMachine.test.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/tsconfig.json` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `x402-seller/vitest.config.ts` | Grok Bot executor sessions (code/tests/docs in this package) | git author `ozzyshaik`; commit messages name the change, not a second AI tool |
+| `.github/workflows/ci.yml` (`x402-seller` job added on PR #23) | Grok Bot executor sessions | Same authorship trail; job runs `npm ci` / `typecheck` / `build` / `test` in `x402-seller/` |
+
+### Owner contributions confirmed so far
+
+Recorded only from the owner's own review / authorization messages (not invented coding credit):
+
+- Specified requirements and review corrections for the seller engine, including the **10 PR #23 corrections** on 6 Nov 2026, the evidence-led correction pass, the **race-fix acceptance boundary** (ledger-level pre-fix proof only; no claim of a pre-fix full engine-level 2xx rejection; no live Arc/Circle verification), and the **frozen scope** to the paid `/v1/mev/analytics` slice.
+- Independently verified `f79de2f` at local/unit level on 6 Nov 2026 Asia/Calcutta: typecheck and build passed; **116/116** tests passed; all five race tests passed; the new ledger regression fails on `dc761fd` with the expected `toBeNull` assertion; CI run `42180463805` reports success.
+
+**Further owner contributions (hand-written code, line-level edits, or additional review credits) are pending owner confirmation and are not claimed here.**
+
+### Event assistance: local HTTP adapter (`b03d41e`, draft PR #25)
+
+Scope: draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) head `b03d41ee7831dedc356590fd9170e5fec82f7afd` on `feat/x402-http-adapter` (base `feat/arc-x402-seller`, unmerged). Labels: `local-http-integration` + `unit-fake` Gateway — **not** live Arc evidence.
+
+Provenance method: `git diff --name-status f79de2f..b03d41e -- x402-seller/` for new/changed paths; `git log` authorship for `6dc242c`…`b03d41e` is `ozzyshaik <ozzyshaik@users.noreply.github.com>` only; commit messages do not name Claude, Cursor, Kimi, Copilot or another tool. Session context: **Grok Bot executor sessions** wrote these parts under owner direction.
+
+| Path | AI tool that produced this part | Evidence noted |
+|---|---|---|
+| `x402-seller/docs/CHECKPOINT.md` | Grok Bot executor sessions | new in `6dc242c` |
+| `x402-seller/docs/CIRCLE_RECHECK.md` (edits) | Grok Bot executor sessions | modified on PR #25 |
+| `x402-seller/README.md` (edits) | Grok Bot executor sessions | modified on PR #25 |
+| `x402-seller/.env.example` (edits) | Grok Bot executor sessions | modified on PR #25 |
+| `x402-seller/package.json` / `package-lock.json` | Grok Bot executor sessions | modified on PR #25 (incl. fast-check) |
+| `x402-seller/src/index.ts` (exports) | Grok Bot executor sessions | modified on PR #25 |
+| `x402-seller/src/http/config.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/headers.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/index.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/server.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/timeoutGateway.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/upstreamHttp.ts` | Grok Bot executor sessions | new |
+| `x402-seller/test/httpHeaders.test.ts` | Grok Bot executor sessions | new (6 unit-fake) |
+| `x402-seller/test/httpPaymentHeader.property.test.ts` | Grok Bot executor sessions | new (3 unit-fake fast-check) |
+| `x402-seller/test/httpAdapter.local-http-integration.test.ts` | Grok Bot executor sessions | new (12 local-http-integration + unit-fake Gateway) |
+
+Owner contributions confirmed for this HTTP follow-up (requirements / acceptance only; not invented coding credit): authorized the thin HTTP adapter and local-http-integration test matrix in t253u; required unpaid 402, settle-before-upstream, 2xx, replay, Retry-After, redirect rejection, timeouts, bypass rejection, and FAKE-Gateway labelling. Further owner coding contributions remain pending owner confirmation.
+
+### What this section does not claim
+
+- No live Arc / Circle / Studio / durable-store / public-demo evidence. Local HTTP adapter evidence is `local-http-integration` + unit-fake Gateway only.
+- No percentage of AI versus human authorship.
+- No claim that "every rule" of the Arc specification is covered by an executable test unless that test exists and is recorded in [EVIDENCE.md](EVIDENCE.md).

@@ -31,7 +31,7 @@ Dated scale measurements and the known limits (including that the ExEx has only 
 
 Supersonic is being extended into one complete investigation workflow: an agent pays for a derived execution-level lead, follows the same transaction hash into SGIP, and receives a replayable response with its evidence context. The ambition is to make Supersonic the most direct path from World Chain activity to inspectable evidence.
 
-Planned product capabilities (specifications only, not yet implemented):
+Planned product capabilities (specifications; implementation status called out below):
 
 1. **x402 pay-per-request data access** with Circle Gateway nanopayments in USDC on Arc ([specification](docs/hackathon/01-x402-arc-gateway.md)).
 2. **World ID gating with IDKit** for one active self-service free-tier key per action-scoped nullifier ([specification](docs/hackathon/02-world-id-gating.md)).
@@ -39,6 +39,22 @@ Planned product capabilities (specifications only, not yet implemented):
 4. **ENS name inputs** for address parameters, resolved before payment and pinned through fulfillment ([specification](docs/hackathon/03-ens-integration.md)).
 
 Each capability must strengthen the same request → authorize → investigate → replay workflow. The product story is not a sequence of disconnected integrations. A labelled public fixture and one-command REST/SGIP verification are planned to make the investigation reproducible without production access ([specification](docs/hackathon/05-investigation-evidence.md)); neither is an existing result.
+
+### Frozen Mumbai submission slice (event work in progress)
+
+For ETHGlobal Mumbai, implementation is **frozen** to one vertical slice (see [CONTINUITY.md](CONTINUITY.md)):
+
+**Arc Studio UI → real HTTP seller → Circle Gateway / Arc Testnet → existing Go API `/v1/mev/analytics` → stored response/receipt → SGIP graph for the same investigated World Chain `tx_hash`.**
+
+| Piece | Status |
+|---|---|
+| Experimental TypeScript seller **engine** (`x402-seller/`) | Draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) head `f79de2f` — **experimental seller-engine checkpoint** only; local `unit-fake` / `contract-real-local` evidence in [EVIDENCE.md](EVIDENCE.md). Not live Arc/Circle. |
+| Real HTTP adapter around the engine | Draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) head `b03d41e` — **local-http-integration + unit-fake Gateway** only (137/137). **Not** live Arc/Circle |
+| Arc Studio UI / Studio URL | `MISSING` until the owner supplies a project |
+| Live Gateway / Arc Testnet payment, batching, settlement, public demo, video | `NOT_YET_RUN` / `MISSING` — keep [EVIDENCE.md](EVIDENCE.md) ARC live rows as written |
+| IDKit, Agent Pass, ENS, other partners, pstack formal verification | **Deferred, not started** until the paid `/v1/mev/analytics` flow and its evidence are complete |
+
+The Arc **payment** transaction/transfer ID is always separate from the investigated World Chain `tx_hash`. Do not present `/v1/balance` as a wallet balance. Slice diagram and demo script drafts: [docs/ARCHITECTURE_SLICE.md](docs/ARCHITECTURE_SLICE.md), [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 
 ## Product website
 
@@ -63,7 +79,7 @@ This product direction is the planned extension for the Continuity Track at ETHG
 
 **Open-source rule.** ETHGlobal's rules for Continuity-track submissions say: "All new parts of extending an existing project must remain open source." ([ethglobal.com/rules](https://ethglobal.com/rules), read 2026-10-27.) Every new part of the submitted extension remains public under the repository's open-source license. Credentials, private data and sensitive live-infrastructure details are redacted. No submitted feature or required implementation is hidden or misrepresented.
 
-Supporting documents (pre-start documentation; templates and plans, not results): [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions; UI/media asset inventory of the existing assets is included; origin of those assets is not confirmed), [EVIDENCE.md](EVIDENCE.md) (evidence register, nothing run yet), [DEMO_PLAN.md](DEMO_PLAN.md) (demo plan, not an existing demo), the [submission checklist](docs/hackathon/95-submission-checklist.md) (all boxes unchecked; nothing submitted) and the [AI artifact plan](docs/hackathon/96-ai-artifact-plan.md) (plan only; no prompts published yet). Detailed track constraints, integration criteria and evidence requirements remain in those documents rather than interrupting the product overview above.
+Supporting documents: [AI_USAGE.md](AI_USAGE.md) (baseline AI usage and human contributions, plus event-period per-file attribution for `x402-seller/`; UI/media asset inventory of the existing assets is included; origin of those assets is not confirmed), [EVIDENCE.md](EVIDENCE.md) (evidence register; local `unit-fake` / `contract-real-local` seller-engine verification recorded; **no** live ARC row marked passed), [DEMO_PLAN.md](DEMO_PLAN.md) and [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) (demo plan / script drafts, not an existing demo), [docs/ARCHITECTURE_SLICE.md](docs/ARCHITECTURE_SLICE.md) (frozen-slice diagram with status labels), the [submission checklist](docs/hackathon/95-submission-checklist.md) (all boxes unchecked; nothing submitted) and the [AI artifact plan](docs/hackathon/96-ai-artifact-plan.md) (plan only; no prompts published yet). Detailed track constraints, integration criteria and evidence requirements remain in those documents rather than interrupting the product overview above.
 
 ## Architecture
 
@@ -99,6 +115,7 @@ flowchart LR
 | `schema/` | SQL | – | ClickHouse DDL (tables, materialized views) | Reference dumps |
 | `proto/` | protobuf | – | ExEx → tank-engine stream definition | – |
 | `docs/openapi.yaml` | OpenAPI 3.0 | – | REST surface of the gateway | – |
+| `x402-seller/` | TypeScript | – | Experimental off-chain x402 seller **engine** + thin local HTTP adapter (settle-before-fulfill); FAKE Gateway in unit/local-http tests | Engine checkpoint draft PR #23 (`f79de2f`); HTTP adapter draft PR #25 (`b03d41e`, local-http-integration + unit-fake); **not** live Arc/Circle |
 
 ## What is live and what is not (known limits)
 

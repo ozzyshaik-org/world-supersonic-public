@@ -3,13 +3,25 @@
 Status: plan only. Official hacking start was **2026-11-05 21:00:00 IST**; the annotated start tag `ethglobal-mumbai-2026-start`
 (tag object `7993c080fa47d3f15e584795fcb4bd59c0250012`, peeled commit `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`) exists and must
 never be moved or backdated. Under Corrected Variant B, PR #21 is not an event-built feature. This is not an existing demo.
-None of the event flows below is implemented, and each step will be shown only if it works. A step that does not work will be
-shown as an honest pending state, not simulated.
+Each step will be shown only if it works. A step that does not work will be shown as an honest pending state, not simulated.
 
-Narrative: **an agent pays once for an execution-level lead, follows its transaction hash into Supersonic's investigation
-graph, and leaves with an inspectable response and receipt.** World ID IDKit protects the human free tier; Agent Pass adds
-a fresh human checkpoint and a separate application approval for one paid or elevated agent request. These integrations
-support the investigation product; they are not presented as a sponsor-logo sequence.
+**Frozen demo target (6 Nov 2026):** the single paid `/v1/mev/analytics` investigation flow. Arc payment ID ≠ investigated
+World Chain `tx_hash`. Detailed step script with status labels: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md). Slice diagram:
+[docs/ARCHITECTURE_SLICE.md](docs/ARCHITECTURE_SLICE.md).
+
+| Artifact | Status |
+|---|---|
+| Experimental seller-engine (`f79de2f`, draft PR #23) | built-unit-fake / contract-real-local only |
+| Real HTTP seller adapter (`b03d41e`, draft PR #25) | local-http-integration + unit-fake Gateway (137/137); **not** live Arc |
+| Arc Studio URL | `MISSING` |
+| Public demo URL | `MISSING` |
+| Live payment / batching / settlement | `NOT_YET_RUN` |
+| Demo / submission video | `MISSING` |
+| IDKit / Agent Pass / ENS segments below | **deferred, not started** until the Arc slice and its evidence are complete |
+
+Narrative: **an agent pays once for an execution-level lead on `/v1/mev/analytics`, follows its World Chain transaction hash
+into Supersonic's investigation graph, and leaves with an inspectable response and receipt.** World ID IDKit and Agent Pass
+remain in the longer plan below but are deferred for the frozen Mumbai slice; they are not presented as a sponsor-logo sequence.
 
 The investigation and public-fixture contract is in [spec 05](docs/hackathon/05-investigation-evidence.md). A derived MEV
 row remains a candidate/finding, not proof of intent, guaranteed classification or realized profit. Live chain data, the
@@ -26,8 +38,8 @@ filling time with a mock. Show the longer failure matrix in the live judging app
 | 0:15–0:35 | Arc Studio and architecture | The real Studio project on `studio.arc.io`, the Studio-built frontend and seller backend, and a compact client → seller → Circle Gateway → Go API/SGIP diagram. No placeholder URL. |
 | 0:35–1:20 | Paid investigation | An existing `/v1/mev/analytics` request returns 402; the client signs; the seller validates, reserves and calls `settle()`; only after Gateway accepts does it fulfill. The response's `tx_hash` opens the SGIP graph for that same transaction, with block context and receipt visible. Acceptance and fulfillment are separate events. |
 | 1:20–1:40 | Retry and Gateway truth | After fulfillment, the same authorization returns the stored response with no second charge; a different request reusing the nonce gets 409. A status panel shows only observed Gateway states: `received` is not batching, `batched`/`confirmed` is direct batching evidence, and `completed` is final settlement. No waiting is left in the video. |
-| 1:40–2:05 | IDKit trust moment | Mint one self-service free-tier key with a supported World ID credential verified by the backend; show the duplicate refusal and revoked-key refusal. Explain in one sentence why that credential is the minimum sufficient assurance. |
-| 2:05–2:50 | Agent Pass checkpoint | Pause one exact paid or elevated operation; complete fresh authentication (`max_age=0`); separately approve the displayed action in our application; reserve before `settle()` and execute once. Show one denied/cancelled/changed/replayed path remaining blocked. Agent Pass approval is not Arc payment. |
+| 1:40–2:05 | IDKit trust moment (**deferred**) | Mint one self-service free-tier key with a supported World ID credential verified by the backend; show the duplicate refusal and revoked-key refusal. Explain in one sentence why that credential is the minimum sufficient assurance. |
+| 2:05–2:50 | Agent Pass checkpoint (**deferred**) | Pause one exact paid or elevated operation; complete fresh authentication (`max_age=0`); separately approve the displayed action in our application; reserve before `settle()` and execute once. Show one denied/cancelled/changed/replayed path remaining blocked. Agent Pass approval is not Arc payment. |
 | 2:50–3:20 | Reproduce and inspect | Run the one-command public-fixture verification and its negative control, then show the event diff, code pointers and AI-use entry point. State that the fixture is synthetic/sanitized and proves only the documented REST/SGIP contract. |
 | 3:20–3:40 | Limits and submission pointers | Real demo/repository/Studio links, integration debriefs and material limitations. ENS appears only if actually completed; an unfinished feature is not implied to work. |
 

@@ -1,8 +1,10 @@
 # Evidence register
 
-Status: template, pre-start documentation. Nothing in this register has been run. Every event row is `NOT_YET_RUN` or
-`PLANNED`. The Commit, Actual and Proof columns stay empty until a real run produces a real result. Do not enter
-transaction hashes, URLs or results that were not produced by a recorded run.
+Status: register with one **local-only** verification section for the experimental `x402-seller` seller-engine
+checkpoint. Every Arc / IDKit / Agent Pass / ENS / cross-feature / investigation **live** row below remains
+`NOT_YET_RUN` or `PLANNED` unless its complete stated procedure was run. Do not enter transaction hashes, URLs or
+results that were not produced by a recorded run. Do not convert unit-fake or contract-real-local results into live
+Arc / Circle claims.
 
 > Authorization, fulfillment, batching and settlement require separate evidence. Gateway balance/transfer/status evidence must not be replaced by an unrelated recipient-wallet balance check.
 
@@ -10,12 +12,159 @@ Status values:
 
 - `NOT_YET_RUN`: the claim has a defined procedure, and the procedure has not been run.
 - `PLANNED`: the claim is intended but its procedure is not yet defined in detail.
+- `NOT_RUN`: used in the local-verification section for a follow-up procedure that is defined but not yet executed on this branch (placeholder until a later incremental commit records results).
+- `MISSING`: a required submission artifact (URL, video, Studio project, public demo) does not exist yet.
+
+Evidence labels used in the local-verification section:
+
+- `unit-fake`: in-process unit tests with a clearly labelled FAKE Gateway (and fake upstream). No network to Circle / Arc.
+- `contract-real-local`: local import/contract checks against committed Circle/chain configuration, still with no live network call.
 
 Row IDs: `ARC-nn` (Arc), `IDK-nn` (World ID IDKit), `AP-nn` (Agent Pass), `ENS-nn` (ENS), `X-nn` (cross-feature) and `INV-nn` (investigation/reproducibility). The "Done means" column names the spec item each row traces to, written `<spec>-DM<n>` (for example `01-DM5` is item 5 of spec 01), and the last section lists every item with its rows. Rows in the single-feature tables may cover only part of an item; the procedure column says what is run.
 
 Specifications: [Arc x402](docs/hackathon/01-x402-arc-gateway.md), [World ID IDKit](docs/hackathon/02-world-id-gating.md),
 [World ID Agent Pass](docs/hackathon/04-agent-pass.md), [ENS](docs/hackathon/03-ens-integration.md) and
-[investigation/evidence](docs/hackathon/05-investigation-evidence.md). Feature and supporting event work is not implemented yet.
+[investigation/evidence](docs/hackathon/05-investigation-evidence.md).
+
+**Event implementation note (6 Nov 2026).** Draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) (`feat/arc-x402-seller`, head `f79de2f36b8a07371b072398ea1e2657775c3a2f`) adds an **experimental seller-engine checkpoint** under `x402-seller/`. Draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) (`feat/x402-http-adapter`, head `b03d41ee7831dedc356590fd9170e5fec82f7afd`) adds a **thin local HTTP adapter** and `local-http-integration` tests with a FAKE Gateway. Both are event-built after `ethglobal-mumbai-2026-start`. Neither is a live Arc / Circle integration, Arc Studio UI, durable store, or public demo. Live ARC rows below stay `NOT_YET_RUN` / `PLANNED`. IDKit, Agent Pass, ENS and pstack formal verification are **deferred** until the frozen paid `/v1/mev/analytics` slice and its evidence are complete; those rows stay as written and are not started.
+
+
+## Local verification: experimental x402-seller checkpoint (`f79de2f`)
+
+Scope: off-chain TypeScript seller **engine** only (draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23), unmerged). Labels: `unit-fake` (FAKE Gateway) and `contract-real-local` (`circleImport`, no network). This section does **not** pass any live ARC row above.
+
+### Revisions
+
+| Role | Full SHA | Note |
+|---|---|---|
+| Pre-fix (lease/budget race still present) | `dc761fd4ce68c5339571ac6e6bcd2b5f5684f85a` | New ledger regression fails as expected |
+| Fix (accepted local/unit evidence) | `f79de2f36b8a07371b072398ea1e2657775c3a2f` | Atomic retryable/budget CAS under original lease |
+
+### Commands (run in `x402-seller/` at `f79de2f`)
+
+```bash
+cd x402-seller
+npm ci --no-audit --no-fund
+npm run typecheck
+npm run build
+npm test
+```
+
+### Results at `f79de2f` (owner independently verified, local/unit, 6 Nov 2026 Asia/Calcutta)
+
+| Check | Result | Label |
+|---|---|---|
+| `npm run typecheck` | passed | local |
+| `npm run build` | passed | local |
+| `npm test` | **116/116** passed | `unit-fake` + `contract-real-local` |
+| CI run [`42180463805`](https://github.com/ozzyshaik-org/world-supersonic-public/actions/runs/42180463805) | success (`x402-seller`, `go`, `website` jobs) | CI on PR #23 |
+
+Per-file test counts at `f79de2f` (sum 116):
+
+| File | Tests |
+|---|---|
+| `test/fingerprint.test.ts` | 21 |
+| `test/authKey.test.ts` | 3 |
+| `test/paymentStructure.test.ts` | 27 |
+| `test/stateMachine.test.ts` | 20 |
+| `test/regressionMatrix.test.ts` | 38 |
+| `test/circleImport.test.ts` | 2 (`contract-real-local`) |
+| `test/leaseRaceBudget.test.ts` | 5 (race / lease-budget suite) |
+
+### Race fix evidence boundary (owner-accepted)
+
+- All **five** tests in `test/leaseRaceBudget.test.ts` passed at `f79de2f`.
+- **Pre-fix oracle (ledger-level only):** on `dc761fd`, the new ledger regression fails with the expected `toBeNull` assertion failure. Observed wrong state after the unfenced clobber: `fulfillmentState = failed_permanent`, incident `paid_unfulfilled`, `leaseGeneration = 2` (peer had taken a newer lease). This proves the ledger interleaving bug before the CAS fence.
+- **Evidence boundary (mandatory):** the pre-fix proof is **ledger-level**. A pre-fix full **engine-level** 2xx rejection was **not** independently reproduced. Do not claim otherwise.
+- **No live Arc / Circle behaviour** has been verified by these runs. FAKE Gateway only. Never convert these results into live Arc claims.
+
+### Local HTTP adapter verification (draft PR #25, `b03d41e`)
+
+Labels: **`local-http-integration` + `unit-fake` Gateway**. Real `node:http` seller adapter + real local upstream test server; Gateway remains `FakeGatewayClient`. **Not** live Arc / Circle evidence. Do not convert these results into live ARC row passes.
+
+| Role | Full SHA | Note |
+|---|---|---|
+| Package checkpoint docs | `6dc242c2c7041c764ad2e9f8b6f142b19ce3489e` | `x402-seller/docs/CHECKPOINT.md` for `f79de2f` |
+| Header codecs + property tests | `123588e85bfaa64560d19d5ac808dfcd805fb07b` | `httpHeaders` + `httpPaymentHeader.property` |
+| Upstream client | `4533d83cb8ee7d3014401b07abdb2b9128a4682b` | redirect reject + timeouts |
+| Thin HTTP adapter + local-http-integration | `b03d41ee7831dedc356590fd9170e5fec82f7afd` | draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) head (unmerged); base `feat/arc-x402-seller` |
+
+Commands (in `x402-seller/` at `b03d41e`):
+
+```bash
+cd x402-seller
+npm ci --no-audit --no-fund
+npm run typecheck
+npm run build
+npm test
+```
+
+Results recorded from local runs (`/workspace/http-*.txt`) and CI:
+
+| Check | Result | Label |
+|---|---|---|
+| `npm run typecheck` / `npm run build` | passed | local |
+| `npm test` | **137/137** passed (116 prior + 21 new) | `unit-fake` + `contract-real-local` + `local-http-integration` |
+| CI run [`42192285577`](https://github.com/ozzyshaik-org/world-supersonic-public/actions/runs/42192285577) on `b03d41e` | success (`go`, `website`, `x402-seller`) | CI on PR #25 |
+
+Per-file test counts at `b03d41e` (sum 137):
+
+| File | Tests | Label |
+|---|---|---|
+| `test/fingerprint.test.ts` | 21 | `unit-fake` |
+| `test/authKey.test.ts` | 3 | `unit-fake` |
+| `test/paymentStructure.test.ts` | 27 | `unit-fake` |
+| `test/stateMachine.test.ts` | 20 | `unit-fake` |
+| `test/regressionMatrix.test.ts` | 38 | `unit-fake` |
+| `test/circleImport.test.ts` | 2 | `contract-real-local` |
+| `test/leaseRaceBudget.test.ts` | 5 | `unit-fake` |
+| `test/httpHeaders.test.ts` | 6 | `unit-fake` |
+| `test/httpPaymentHeader.property.test.ts` | 3 | `unit-fake` (fast-check) |
+| `test/httpAdapter.local-http-integration.test.ts` | 12 | `local-http-integration` + `unit-fake` Gateway |
+
+#### Owner-required property coverage map (`httpAdapter.local-http-integration.test.ts`)
+
+Read-only mapping of exact `it(...)` names on `/workspace/wsp-http` at `b03d41e`. Suite describe: `local-http-integration + unit-fake Gateway`.
+
+| Required property | Status | Exact test name |
+|---|---|---|
+| Unpaid 402 + machine-readable requirements | **COVERED** | `unpaid request returns 402 with PAYMENT-REQUIRED header and accepts body` |
+| Settle-before-upstream ordering | **COVERED** | `paid path settles before upstream and returns 2xx fulfilled body` (asserts `settleOrder == ["settle","upstream"]`) |
+| 2xx fulfillment | **COVERED** | `paid path settles before upstream and returns 2xx fulfilled body` |
+| Same-binding replay | **COVERED** | `same-binding replay returns stored body without second settle or upstream` |
+| Retry-After header | **COVERED** | `unresolved settle emits Retry-After with configured seconds` (also asserted on upstream-timeout path) |
+| Redirect rejection | **COVERED** | `upstream 3xx is not followed; redirect target never hit` |
+| Upstream timeout | **COVERED** | `upstream timeout surfaces as retryable upstream_error with Retry-After` |
+| Payment/settle timeout | **COVERED** | `settle timeout does not call upstream` |
+| Direct paid-route bypass rejection | **COVERED** | `direct paid-route bypass attempts are rejected; upstream never hit` |
+| Malformed payment → 400 | **COVERED** | `malformed PAYMENT-SIGNATURE returns 400; upstream and Gateway never hit` |
+| Server-side API key / client key stripping | **COVERED** | `server-side API key reaches upstream; client keys are stripped / ignored` |
+
+**NOT_COVERED required properties:** none from the owner list above.
+
+Additional tests in the same file (not required by the list, recorded for honesty): `POST and other methods on allowlisted path are rejected without upstream`; `non-2xx upstream (4xx) becomes paid_unfulfilled without claiming live Arc`.
+
+#### Planted-bug proofs (reverted after failure; logs under `/workspace/http-planted-*.txt`)
+
+Each planted mutation was run against the matching test and failed as expected, then reverted:
+
+| Planted file | Failing test | Assertion observed |
+|---|---|---|
+| `http-planted-settle-before-upstream.txt` | `paid path settles before upstream and returns 2xx fulfilled body` | expected upstream hits length 1, got 2 |
+| `http-planted-redirect.txt` | `upstream 3xx is not followed; redirect target never hit` | expected status 502, got 200 |
+| `http-planted-bypass.txt` | `direct paid-route bypass attempts are rejected; upstream never hit` | expected `path_not_allowlisted`, got undefined |
+| `http-planted-replay.txt` | `same-binding replay returns stored body without second settle or upstream` | second response body ≠ first (replay broken) |
+| `http-planted-retry-after.txt` | `unresolved settle emits Retry-After with configured seconds` | expected `Retry-After` `9`, got null |
+
+#### Still open after this HTTP checkpoint (not live Arc)
+
+| Item | Status | Notes |
+|---|---|---|
+| Arc Studio project / Studio URL | `MISSING` | No owner-supplied Studio project URL yet |
+| Public demo URL | `MISSING` | |
+| Durable store (non-memory ledger) | `NOT_RUN` | Memory ledger only in these tests |
+| Live Gateway / Arc Testnet payment, batching, settlement, end-to-end | `NOT_YET_RUN` / keep ARC-01…ARC-23 as written | Do not mark passed until the complete stated procedure runs with real credentials |
+| Demo video | `MISSING` | |
 
 ## Arc: x402 with Circle Gateway (priority 1, core)
 
