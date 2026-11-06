@@ -2,7 +2,7 @@
 
 Interactive product website and four-minute guided pitch for Supersonic: execution-level indexing, derived datasets, and investigation infrastructure for World Chain.
 
-This is a **frontend-only product/presentation site**. It is not the planned Arc Studio event frontend, does not implement the hackathon integrations, and is not evidence of an Arc, World ID, Agent Pass, or ENS run. In the repository’s Continuity history, website commits made before `ethglobal-mumbai-2026-start` are pre-existing product/presentation work; the tag must not be created or moved by website work.
+This is a **frontend-only product/presentation site**. It is not the planned Arc Studio event frontend, does not implement the hackathon integrations, and is not evidence of an Arc, World ID, Agent Pass, or ENS run. In the repository’s Continuity history, website commits made before `ethglobal-mumbai-2026-start` are pre-existing product/presentation work. The annotated start tag `ethglobal-mumbai-2026-start` (tag object `7993c080fa47d3f15e584795fcb4bd59c0250012`, peeled commit `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`) exists and must never be moved or backdated. Under Corrected Variant B, PR #21 website wording remains pre-existing branch work; only merge `cb39dbb` is event-period administrative/documentation.
 
 ## Requirements
 

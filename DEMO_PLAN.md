@@ -1,7 +1,10 @@
 # Demo plan
 
-Status: plan only, pre-start documentation. This is not an existing demo. None of the event flows below is implemented,
-and each step will be shown only if it works. A step that does not work will be shown as an honest pending state, not simulated.
+Status: plan only. Official hacking start was **2026-11-05 21:00:00 IST**; the annotated start tag `ethglobal-mumbai-2026-start`
+(tag object `7993c080fa47d3f15e584795fcb4bd59c0250012`, peeled commit `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`) exists and must
+never be moved or backdated. Under Corrected Variant B, PR #21 is not an event-built feature. This is not an existing demo.
+None of the event flows below is implemented, and each step will be shown only if it works. A step that does not work will be
+shown as an honest pending state, not simulated.
 
 Narrative: **an agent pays once for an execution-level lead, follows its transaction hash into Supersonic's investigation
 graph, and leaves with an inspectable response and receipt.** World ID IDKit protects the human free tier; Agent Pass adds
@@ -64,7 +67,8 @@ Run these as separate inspectable checks, with [EVIDENCE.md](EVIDENCE.md) record
 11. **Evaluator reproduction.** From a clean checkout, run the public fixture command and negative control. Show the manifest
     and expected assertions; do not present fixture output as live chain data or as partner-run evidence.
 12. **Continuity, AI and limitations.** Show the diff since `ethglobal-mumbai-2026-start`, [AI_USAGE.md](AI_USAGE.md), the
-    integration debriefs and known limitations. No start tag or event result exists merely because it is listed here.
+    Corrected Variant B classification in [CONTINUITY.md](CONTINUITY.md), the integration debriefs and known limitations.
+    An event result does not exist merely because a step is listed here.
 
 Evidence for each claimed step is recorded in [EVIDENCE.md](EVIDENCE.md). Specifications:
 [Arc x402](docs/hackathon/01-x402-arc-gateway.md), [World ID IDKit](docs/hackathon/02-world-id-gating.md),
