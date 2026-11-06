@@ -55,3 +55,31 @@ export {
   isKnownGatewayStatus,
   KNOWN_GATEWAY_STATUSES,
 } from "./types.js";
+
+// Experimental local HTTP adapter (not live Arc evidence)
+export {
+  HEADER_PAYMENT_REQUIRED,
+  HEADER_PAYMENT_SIGNATURE,
+  HEADER_PAYMENT_RESPONSE,
+  MAX_PAYMENT_HEADER_CHARS,
+  PaymentHeaderError,
+  buildPaymentRequiredEnvelope,
+  encodePaymentRequiredHeader,
+  encodePaymentSignatureHeader,
+  encodePaymentResponseHeader,
+  decodePaymentSignatureHeader,
+  getHeader,
+  HttpUpstreamClient,
+  TimeoutGatewayClient,
+  loadAdapterConfigFromEnv,
+  createSellerHttpServer,
+  listenSellerHttpServer,
+} from "./http/index.js";
+export type {
+  PaymentRequiredEnvelope,
+  HttpUpstreamConfig,
+  AdapterEnvConfig,
+  HttpAdapterOptions,
+  AdapterEvent,
+  ListeningServer,
+} from "./http/index.js";

@@ -24,12 +24,19 @@
     "viem": "^2.0.0"
   },
   "peerDependenciesMeta": {
-    "@x402/core": { "optional": true },
-    "@x402/evm": { "optional": true },
-    "viem": { "optional": true }
+    "@x402/core": {
+      "optional": true
+    },
+    "@x402/evm": {
+      "optional": true
+    },
+    "viem": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "fast-check": "^4.10.2",
     "typescript": "^5.8.3",
     "vitest": "^3.1.2"
   },
