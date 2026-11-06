@@ -3,7 +3,7 @@ import type { PriceTableEntry } from "./types.js";
 /**
  * Initial open-route price table (USDC atomic base units).
  * Prices are placeholders for the first checkpoint — commercial docs are not touched.
- * /v1/balance is an application address-balance route, NOT a wallet/Gateway balance.
+ * /v1/balance is an application route: toString(sum(balance_change)) over worldchain.api_token_balances; NOT native ETH, wallet, per-token wallet, or Gateway balance.
  */
 export const DEFAULT_PRICE_TABLE: readonly PriceTableEntry[] = [
   {

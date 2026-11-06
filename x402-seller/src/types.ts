@@ -1,7 +1,8 @@
 /**
  * Ledger and Gateway types for the x402 seller (spec 01).
- * Shapes for settle/transfer match Circle Gateway Nanopayments SDK docs
- * (@circle-fin/x402-batching SettleResponse / TransferStatus), re-read for this checkpoint.
+ * PaymentPayload follows canonical x402 v2 (selected terms in payment.accepted).
+ * Settle/transfer shapes match Circle Gateway Nanopayments SDK docs
+ * (@circle-fin/x402-batching SettleResponse / TransferStatus).
  */
 
 export type PaymentState =
@@ -18,6 +19,14 @@ export type GatewayStatus =
   | "confirmed"
   | "completed"
   | "failed";
+
+export const KNOWN_GATEWAY_STATUSES: readonly GatewayStatus[] = [
+  "received",
+  "batched",
+  "confirmed",
+  "completed",
+  "failed",
+] as const;
 
 export type FulfillmentState =
   | "not_started"
@@ -80,7 +89,7 @@ export interface TransferRecord {
   updatedAt: string;
 }
 
-/** Circle-documented settle errorReason values treated as definite rejection (HTTP 200 success:false or HTTP 400). */
+/** Circle-documented settle errorReason values treated as definite rejection. */
 export const DEFINITE_SETTLE_ERROR_REASONS = [
   "unsupported_scheme",
   "unsupported_network",
@@ -116,28 +125,40 @@ export interface PaymentPayloadAuthorization {
   nonce: string;
 }
 
-export interface PaymentPayload {
-  x402Version?: number;
-  scheme?: string;
-  network?: string;
-  payload: {
-    signature?: string;
-    authorization: PaymentPayloadAuthorization;
-  };
+/** GatewayWalletBatched extra fields on accepted requirements. */
+export interface GatewayWalletBatchedExtra {
+  name: "GatewayWalletBatched";
+  version: string;
+  verifyingContract: string;
 }
 
+/**
+ * Canonical x402 v2 payment requirements (selected terms live on payment.accepted).
+ * No non-canonical top-level scheme/network on the payment payload.
+ */
 export interface PaymentRequirements {
   scheme: string;
   network: string;
   asset: string;
   amount: string;
   payTo: string;
-  maxTimeoutSeconds?: number;
-  extra?: {
-    name?: string;
-    version?: string;
-    verifyingContract?: string;
+  maxTimeoutSeconds: number;
+  extra: GatewayWalletBatchedExtra;
+}
+
+/**
+ * Canonical x402 v2 PaymentPayload. Selected requirements are in `accepted`.
+ * See @x402/core PaymentPayloadV2Schema and Circle EIP-3009 signing howto.
+ */
+export interface PaymentPayload {
+  x402Version: 2;
+  accepted: PaymentRequirements;
+  payload: {
+    signature: string;
+    authorization: PaymentPayloadAuthorization;
   };
+  resource?: unknown;
+  extensions?: unknown;
 }
 
 export interface SellerRequest {
@@ -172,6 +193,8 @@ export interface SellerResult {
   paymentRequirements?: PaymentRequirements;
   authKey?: string;
   gatewayErrorReason?: string;
+  /** Seconds for Retry-After on unresolved 503 responses (HTTP adapter emits header). */
+  retryAfterSeconds?: number;
 }
 
 export interface StoredResponse {
@@ -193,13 +216,22 @@ export interface LedgerRow extends AuthorizationBinding {
   fulfillmentState: FulfillmentState;
   attemptCounter: number;
   attemptAt: string | null;
+  /** Cryptographically unique lease owner (crypto.randomUUID). */
   leaseOwner: string | null;
+  /** Fencing token; increments on every successful takeLease. */
+  leaseGeneration: number;
   leaseExpiresAt: number | null;
+  /** Count of fulfillment attempts (atomic with ledger transitions). */
+  fulfillmentAttemptCount: number;
+  /** ISO time of first fulfillment attempt; drives total-time retry budget. */
+  fulfillmentFirstAttemptAt: string | null;
   storedResponse: StoredResponse | null;
   receipt: Receipt | null;
   gatewayTransferId: string | null;
   gatewayError: string | null;
   incidents: IncidentFlag[];
+  /** Operator-visible Gateway status anomalies (unknown/backward). */
+  anomalies: string[];
   /** Opaque; never logged or returned to clients. */
   paymentPayload: PaymentPayload;
   createdAt: string;
@@ -226,4 +258,11 @@ export function gatewayStatusRank(status: GatewayStatus | null): number {
     failed: 5,
   };
   return order[status];
+}
+
+export function isKnownGatewayStatus(value: unknown): value is GatewayStatus {
+  return (
+    typeof value === "string" &&
+    (KNOWN_GATEWAY_STATUSES as readonly string[]).includes(value)
+  );
 }
