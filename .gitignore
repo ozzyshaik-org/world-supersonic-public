@@ -43,5 +43,3 @@ rollup*.json
 
 # node
 node_modules/
-dist/
-*.tsbuildinfo

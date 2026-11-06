@@ -42,3 +42,21 @@ jobs:
         working-directory: website
       - run: npm run build
         working-directory: website
+
+  x402-seller:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: x402-seller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: x402-seller/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
