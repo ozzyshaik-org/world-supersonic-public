@@ -56,11 +56,22 @@ export interface SellerConfig {
   clock?: () => Date;
 }
 
+export interface SellerTestHooks {
+  /**
+   * Invoked after a successful resolveRetryableUnderLease that left the row
+   * retryable_failure (lease already released). Tests use this for barriers;
+   * production leaves unset. Never used to continue fencing after release.
+   */
+  afterRetryableRelease?: (row: LedgerRow) => void | Promise<void>;
+}
+
 export interface SellerDeps {
   gateway: GatewayClient;
   upstream: UpstreamClient;
   ledger?: MemoryLedger;
   config: SellerConfig;
+  /** Test-only barriers; must not be set in production paths. */
+  testHooks?: SellerTestHooks;
 }
 
 const DEFAULT_RETRY_AFTER = 2;
@@ -103,7 +114,10 @@ export class SellerEngine {
       leaseWaitMs: deps.config.leaseWaitMs ?? 2_000,
     };
     this.clock = deps.config.clock ?? (() => new Date());
+    this.testHooks = deps.testHooks;
   }
+
+  private readonly testHooks: SellerTestHooks | undefined;
 
   now(): Date {
     return this.clock();
@@ -853,38 +867,36 @@ export class SellerEngine {
     owner: string,
     generation: number,
   ): Promise<SellerResult> {
-    const marked = await this.ledger.withLock(() =>
-      this.ledger.markRetryableFailure(
+    // Atomic under the ORIGINAL lease: retryable_failure XOR failed_permanent.
+    // Never markRetryableFailure (release) then unfenced markFailedPermanent.
+    const resolved = await this.ledger.withLock(() =>
+      this.ledger.resolveRetryableUnderLease(
         authKey,
         owner,
         generation,
         this.wallClockMs(),
         this.nowIso(),
+        {
+          maxAttempts: this.config.fulfillmentRetryBudget,
+          maxMs: this.config.fulfillmentRetryBudgetMs,
+          nowBusinessMs: this.nowMs(),
+        },
       ),
     );
-    // If markRetryableFailure loses CAS, do not continue into markFailedPermanent.
-    // Await the peer's stored/terminal outcome so concurrent callers still converge.
-    if (!marked) {
+    // Lost CAS (peer takeover / expired lease): do not retry the transition
+    // under a fence we no longer hold — defer to the peer's outcome.
+    if (!resolved) {
       return this.waitForPeerResult(authKey);
     }
-
-    const countExceeded = marked.fulfillmentAttemptCount >= this.config.fulfillmentRetryBudget;
-    let timeExceeded = false;
-    if (marked.fulfillmentFirstAttemptAt) {
-      const first = Date.parse(marked.fulfillmentFirstAttemptAt);
-      if (Number.isFinite(first)) {
-        timeExceeded = this.nowMs() - first >= this.config.fulfillmentRetryBudgetMs;
-      }
-    }
-    if (countExceeded || timeExceeded) {
-      await this.ledger.withLock(() =>
-        this.ledger.markFailedPermanent(authKey, this.nowIso()),
-      );
+    if (resolved.exhausted) {
       return {
         httpStatus: 502,
         code: "paid_unfulfilled",
         authKey,
       };
+    }
+    if (this.testHooks?.afterRetryableRelease) {
+      await this.testHooks.afterRetryableRelease(resolved.row);
     }
     return {
       httpStatus: 503,

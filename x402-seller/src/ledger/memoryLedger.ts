@@ -262,10 +262,7 @@ export class MemoryLedger {
     nowIso: string,
   ): LedgerRow | null {
     const row = this.require(authKey);
-    if (row.leaseOwner !== owner) return null;
-    if (row.leaseGeneration !== generation) return null;
-    if (row.fulfillmentState !== "in_progress") return null;
-    if (row.leaseExpiresAt !== null && row.leaseExpiresAt <= nowMs) return null;
+    if (!this.leaseFenceHolds(row, owner, generation, nowMs)) return null;
     row.fulfillmentState = "retryable_failure";
     row.leaseOwner = null;
     row.leaseExpiresAt = null;
@@ -274,30 +271,24 @@ export class MemoryLedger {
   }
 
   /**
-   * Lease-fenced permanent failure. Requires matching owner+generation and a
-   * still-valid in_progress lease (or allows transition from retryable_failure
-   * when called without fencing for budget exhaustion after a lost CAS — the
-   * engine must only call the unfenced path while holding no competing lease).
+   * Lease-fenced permanent failure. Fence is REQUIRED: owner+generation+unexpired
+   * in_progress. There is no unfenced path — releasing via markRetryableFailure
+   * and later calling markFailedPermanent without a live lease was the confirmed
+   * race that could overwrite a newer worker's in_progress attempt.
    */
   markFailedPermanent(
     authKey: string,
     nowIso: string,
     fence?: { owner: string; generation: number; nowMs: number },
   ): LedgerRow | null {
+    // Unfenced calls are a hard no-op. The pre-fix budget path released via
+    // markRetryableFailure then called markFailedPermanent without a fence,
+    // which could overwrite a newer in_progress lease. Callers must use
+    // resolveRetryableUnderLease for budget decisions under the live lease.
+    if (!fence) return null;
     const row = this.require(authKey);
-    if (fence) {
-      if (row.leaseOwner !== fence.owner) return null;
-      if (row.leaseGeneration !== fence.generation) return null;
-      if (row.fulfillmentState !== "in_progress") return null;
-      if (row.leaseExpiresAt !== null && row.leaseExpiresAt <= fence.nowMs) return null;
-    } else {
-      // Budget exhaustion path after markRetryableFailure succeeded: row is retryable_failure.
-      if (
-        row.fulfillmentState !== "retryable_failure" &&
-        row.fulfillmentState !== "in_progress"
-      ) {
-        return null;
-      }
+    if (!this.leaseFenceHolds(row, fence.owner, fence.generation, fence.nowMs)) {
+      return null;
     }
     row.fulfillmentState = "failed_permanent";
     row.leaseOwner = null;
@@ -305,6 +296,58 @@ export class MemoryLedger {
     this.addIncidentUnlocked(row, "paid_unfulfilled");
     row.updatedAt = nowIso;
     return cloneRow(row);
+  }
+
+  /**
+   * Single atomic CAS under the ORIGINAL lease: either record retryable_failure
+   * and release, or record failed_permanent (budget exhausted). Never release
+   * then re-decide under a fence the caller already dropped.
+   */
+  resolveRetryableUnderLease(
+    authKey: string,
+    owner: string,
+    generation: number,
+    nowMs: number,
+    nowIso: string,
+    budget: { maxAttempts: number; maxMs: number; nowBusinessMs: number },
+  ): { row: LedgerRow; exhausted: boolean } | null {
+    const row = this.require(authKey);
+    if (!this.leaseFenceHolds(row, owner, generation, nowMs)) return null;
+
+    let timeExceeded = false;
+    if (row.fulfillmentFirstAttemptAt) {
+      const first = Date.parse(row.fulfillmentFirstAttemptAt);
+      if (Number.isFinite(first)) {
+        timeExceeded = budget.nowBusinessMs - first >= budget.maxMs;
+      }
+    }
+    const countExceeded = row.fulfillmentAttemptCount >= budget.maxAttempts;
+    const exhausted = countExceeded || timeExceeded;
+
+    if (exhausted) {
+      row.fulfillmentState = "failed_permanent";
+      this.addIncidentUnlocked(row, "paid_unfulfilled");
+    } else {
+      row.fulfillmentState = "retryable_failure";
+    }
+    row.leaseOwner = null;
+    row.leaseExpiresAt = null;
+    row.updatedAt = nowIso;
+    return { row: cloneRow(row), exhausted };
+  }
+
+  /** Shared fence check: owner, generation, in_progress, unexpired. */
+  private leaseFenceHolds(
+    row: LedgerRow,
+    owner: string,
+    generation: number,
+    nowMs: number,
+  ): boolean {
+    if (row.leaseOwner !== owner) return false;
+    if (row.leaseGeneration !== generation) return false;
+    if (row.fulfillmentState !== "in_progress") return false;
+    if (row.leaseExpiresAt !== null && row.leaseExpiresAt <= nowMs) return false;
+    return true;
   }
 
   /** Automatic void only from submission_pending with attemptCounter === 0. */
