@@ -161,8 +161,34 @@ Recorded only from the owner's own review / authorization messages (not invented
 
 **Further owner contributions (hand-written code, line-level edits, or additional review credits) are pending owner confirmation and are not claimed here.**
 
+### Event assistance: local HTTP adapter (`b03d41e`, draft PR #25)
+
+Scope: draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) head `b03d41ee7831dedc356590fd9170e5fec82f7afd` on `feat/x402-http-adapter` (base `feat/arc-x402-seller`, unmerged). Labels: `local-http-integration` + `unit-fake` Gateway — **not** live Arc evidence.
+
+Provenance method: `git diff --name-status f79de2f..b03d41e -- x402-seller/` for new/changed paths; `git log` authorship for `6dc242c`…`b03d41e` is `ozzyshaik <ozzyshaik@users.noreply.github.com>` only; commit messages do not name Claude, Cursor, Kimi, Copilot or another tool. Session context: **Grok Bot executor sessions** wrote these parts under owner direction.
+
+| Path | AI tool that produced this part | Evidence noted |
+|---|---|---|
+| `x402-seller/docs/CHECKPOINT.md` | Grok Bot executor sessions | new in `6dc242c` |
+| `x402-seller/docs/CIRCLE_RECHECK.md` (edits) | Grok Bot executor sessions | modified on PR #25 |
+| `x402-seller/README.md` (edits) | Grok Bot executor sessions | modified on PR #25 |
+| `x402-seller/.env.example` (edits) | Grok Bot executor sessions | modified on PR #25 |
+| `x402-seller/package.json` / `package-lock.json` | Grok Bot executor sessions | modified on PR #25 (incl. fast-check) |
+| `x402-seller/src/index.ts` (exports) | Grok Bot executor sessions | modified on PR #25 |
+| `x402-seller/src/http/config.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/headers.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/index.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/server.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/timeoutGateway.ts` | Grok Bot executor sessions | new |
+| `x402-seller/src/http/upstreamHttp.ts` | Grok Bot executor sessions | new |
+| `x402-seller/test/httpHeaders.test.ts` | Grok Bot executor sessions | new (6 unit-fake) |
+| `x402-seller/test/httpPaymentHeader.property.test.ts` | Grok Bot executor sessions | new (3 unit-fake fast-check) |
+| `x402-seller/test/httpAdapter.local-http-integration.test.ts` | Grok Bot executor sessions | new (12 local-http-integration + unit-fake Gateway) |
+
+Owner contributions confirmed for this HTTP follow-up (requirements / acceptance only; not invented coding credit): authorized the thin HTTP adapter and local-http-integration test matrix in t253u; required unpaid 402, settle-before-upstream, 2xx, replay, Retry-After, redirect rejection, timeouts, bypass rejection, and FAKE-Gateway labelling. Further owner coding contributions remain pending owner confirmation.
+
 ### What this section does not claim
 
-- No live Arc / Circle / Studio / real-HTTP evidence.
+- No live Arc / Circle / Studio / durable-store / public-demo evidence. Local HTTP adapter evidence is `local-http-integration` + unit-fake Gateway only.
 - No percentage of AI versus human authorship.
 - No claim that "every rule" of the Arc specification is covered by an executable test unless that test exists and is recorded in [EVIDENCE.md](EVIDENCE.md).

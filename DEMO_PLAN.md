@@ -12,7 +12,7 @@ World Chain `tx_hash`. Detailed step script with status labels: [docs/DEMO_SCRIP
 | Artifact | Status |
 |---|---|
 | Experimental seller-engine (`f79de2f`, draft PR #23) | built-unit-fake / contract-real-local only |
-| Real HTTP seller adapter | in progress (separate branch); not claimed as live |
+| Real HTTP seller adapter (`b03d41e`, draft PR #25) | local-http-integration + unit-fake Gateway (137/137); **not** live Arc |
 | Arc Studio URL | `MISSING` |
 | Public demo URL | `MISSING` |
 | Live payment / batching / settlement | `NOT_YET_RUN` |

@@ -17,7 +17,7 @@ Do **not** demo `/v1/balance` as a wallet balance.
 | Live Arc Testnet / Circle Gateway payment | `NOT_YET_RUN` |
 | Demo / submission video | `MISSING` |
 | Experimental seller-engine at `f79de2f` | `built-unit-fake` / `contract-real-local` (see [EVIDENCE.md](../EVIDENCE.md)) |
-| Real HTTP adapter | `in-progress` on `feat/x402-http-adapter`; local-http-integration tests `NOT_RUN` in the evidence register |
+| Real HTTP adapter | draft PR #25 `b03d41e`: `local-http-integration` + unit-fake Gateway (137/137); **not** live Arc |
 
 ## Timed script (target ≤ 4 minutes once live pieces exist)
 
@@ -26,9 +26,9 @@ Do **not** demo `/v1/balance` as a wallet balance.
 | 0:00–0:20 | Continuity boundary | Pre-existing World Chain index versus event extension; start tag `ethglobal-mumbai-2026-start`; Corrected Variant B | ready (docs) |
 | 0:20–0:40 | Architecture | [ARCHITECTURE_SLICE.md](ARCHITECTURE_SLICE.md) diagram; call out each box status | draft diagram ready |
 | 0:40–0:55 | Studio origin | Real Studio project that the seller starts from | `MISSING` |
-| 0:55–1:40 | Unpaid → 402 | `GET /v1/mev/analytics` without payment returns HTTP 402 with machine-readable requirements | engine: unit-fake challenge construction; **real HTTP 402**: `NOT_RUN` until HTTP adapter evidence lands |
-| 1:40–2:20 | Pay → settle → fulfill | Client signs; seller validates/reserves; `settle()`; only after acceptance call Go API; return stored response/receipt | unit-fake ordering at `f79de2f`; **live Gateway**: `NOT_YET_RUN` |
-| 2:20–2:50 | Same-binding replay | Retry same nonce+binding → stored response, no second charge | unit-fake; HTTP replay `NOT_RUN` |
+| 0:55–1:40 | Unpaid → 402 | `GET /v1/mev/analytics` without payment returns HTTP 402 with machine-readable requirements | engine unit-fake + **local-http-integration COVERED** at `b03d41e` (FAKE Gateway); live Arc still `NOT_YET_RUN` |
+| 1:40–2:20 | Pay → settle → fulfill | Client signs; seller validates/reserves; `settle()`; only after acceptance call Go API; return stored response/receipt | unit-fake + local-http-integration settle-before-upstream/2xx at `b03d41e`; **live Gateway**: `NOT_YET_RUN` |
+| 2:20–2:50 | Same-binding replay | Retry same nonce+binding → stored response, no second charge | unit-fake + local-http-integration COVERED at `b03d41e`; live Arc still `NOT_YET_RUN` |
 | 2:50–3:20 | Investigate | Open SGIP on the response's World Chain `tx_hash` (not the Arc payment id) | SGIP pre-existing; paid E2E `NOT_YET_RUN` |
 | 3:20–3:40 | Limits | No live batching/`completed` claim unless observed; IDKit/Agent Pass/ENS deferred; link [EVIDENCE.md](../EVIDENCE.md) and [AI_USAGE.md](../AI_USAGE.md) | honest limits |
 

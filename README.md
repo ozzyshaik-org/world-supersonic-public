@@ -49,7 +49,7 @@ For ETHGlobal Mumbai, implementation is **frozen** to one vertical slice (see [C
 | Piece | Status |
 |---|---|
 | Experimental TypeScript seller **engine** (`x402-seller/`) | Draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) head `f79de2f` — **experimental seller-engine checkpoint** only; local `unit-fake` / `contract-real-local` evidence in [EVIDENCE.md](EVIDENCE.md). Not live Arc/Circle. |
-| Real HTTP adapter around the engine | In progress on a follow-up branch; not claimed here |
+| Real HTTP adapter around the engine | Draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) head `b03d41e` — **local-http-integration + unit-fake Gateway** only (137/137). **Not** live Arc/Circle |
 | Arc Studio UI / Studio URL | `MISSING` until the owner supplies a project |
 | Live Gateway / Arc Testnet payment, batching, settlement, public demo, video | `NOT_YET_RUN` / `MISSING` — keep [EVIDENCE.md](EVIDENCE.md) ARC live rows as written |
 | IDKit, Agent Pass, ENS, other partners, pstack formal verification | **Deferred, not started** until the paid `/v1/mev/analytics` flow and its evidence are complete |
@@ -115,7 +115,7 @@ flowchart LR
 | `schema/` | SQL | – | ClickHouse DDL (tables, materialized views) | Reference dumps |
 | `proto/` | protobuf | – | ExEx → tank-engine stream definition | – |
 | `docs/openapi.yaml` | OpenAPI 3.0 | – | REST surface of the gateway | – |
-| `x402-seller/` | TypeScript | – | Experimental off-chain x402 seller **engine** (settle-before-fulfill); FAKE Gateway in unit tests | Event checkpoint on draft PR #23 (`f79de2f`); **not** live Arc/Circle; **not** a real HTTP server in that checkpoint; HTTP adapter is a separate follow-up |
+| `x402-seller/` | TypeScript | – | Experimental off-chain x402 seller **engine** + thin local HTTP adapter (settle-before-fulfill); FAKE Gateway in unit/local-http tests | Engine checkpoint draft PR #23 (`f79de2f`); HTTP adapter draft PR #25 (`b03d41e`, local-http-integration + unit-fake); **not** live Arc/Circle |
 
 ## What is live and what is not (known limits)
 

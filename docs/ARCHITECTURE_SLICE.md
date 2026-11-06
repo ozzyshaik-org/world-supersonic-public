@@ -3,9 +3,9 @@
 Status: **draft diagram for submission planning**. It labels each box by current evidence status. It is not a claim that
 live Arc/Circle, Studio, or end-to-end payment has been run.
 
-Official start tag: `ethglobal-mumbai-2026-start` (peeled `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`). Experimental
-seller-engine checkpoint: draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) head
-`f79de2f36b8a07371b072398ea1e2657775c3a2f`.
+Official start tag: `ethglobal-mumbai-2026-start` (peeled `cb39dbb3d2dbf217949ef279c7e526c543c0b7ea`). Experimental seller-engine checkpoint: draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) head
+`f79de2f36b8a07371b072398ea1e2657775c3a2f`. Local HTTP adapter: draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) head
+`b03d41ee7831dedc356590fd9170e5fec82f7afd` (`local-http-integration` + unit-fake Gateway; not live Arc).
 
 **Identity rule:** the Arc **payment** transaction / Gateway transfer ID is always **separate** from the investigated
 World Chain `tx_hash` returned by `/v1/mev/analytics` and opened in SGIP.
@@ -31,18 +31,18 @@ Do **not** present `/v1/balance` as a wallet balance in this slice.
 flowchart LR
     STUDIO["Arc Studio UI<br/>status: MISSING"]
     CLIENT["Client / agent<br/>status: MISSING public demo"]
-    HTTP["Real HTTP seller adapter<br/>status: in-progress<br/>(feat/x402-http-adapter)"]
+    HTTP["Real HTTP seller adapter<br/>status: local-http-integration<br/>+ unit-fake Gateway<br/>b03d41e draft PR #25"]
     ENGINE["SellerEngine x402-seller<br/>status: built-unit-fake<br/>checkpoint f79de2f"]
     FAKE["FAKE Gateway in unit tests<br/>status: built-unit-fake"]
     GW["Circle Gateway / Arc Testnet<br/>status: NOT_YET_RUN live"]
     API["Go API GET /v1/mev/analytics<br/>status: pre-existing"]
-    STORE["Stored response + receipt<br/>status: built-unit-fake in engine;<br/>HTTP replay NOT_RUN"]
+    STORE["Stored response + receipt<br/>status: built-unit-fake in engine;<br/>HTTP same-binding replay<br/>local-http-integration COVERED"]
     SGIP["SGIP graph for same World Chain tx_hash<br/>status: pre-existing UI;<br/>paid E2E NOT_YET_RUN"]
 
     STUDIO -.->|"MISSING until owner supplies project"| CLIENT
-    CLIENT -->|"HTTP 402 / payment header<br/>NOT_RUN over real HTTP"| HTTP
+    CLIENT -->|"HTTP 402 / payment header<br/>local-http-integration COVERED<br/>(FAKE Gateway)"| HTTP
     HTTP --> ENGINE
-    ENGINE -->|"settle() before upstream<br/>unit-fake only so far"| FAKE
+    ENGINE -->|"settle() before upstream<br/>unit-fake + local-http-integration"| FAKE
     ENGINE -.->|"live settle NOT_YET_RUN"| GW
     ENGINE -->|"after acceptance only"| API
     API -->|"response carries investigated tx_hash"| STORE

@@ -16,7 +16,7 @@ Annotated start tag: `ethglobal-mumbai-2026-start`
 
 Rows below record event-period work. Pre-existing work remains tag `baseline-pre-ethglobal-mumbai` and the pre-start commits listed in [CONTINUITY.md](CONTINUITY.md).
 
-Rows for draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) record **experimental seller-engine** checkpoint commits on branch `feat/arc-x402-seller`. They are event-built after the start tag and are **not** yet on `main`. Do not treat them as a live HTTP seller, Arc Studio UI, or live Circle Gateway integration. Package-local checkpoint documentation lives under `x402-seller/` on that PR and is not edited by this docs PR.
+Rows for draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public/pull/23) record **experimental seller-engine** checkpoint commits on branch `feat/arc-x402-seller`. Rows for draft PR [#25](https://github.com/ozzyshaik-org/world-supersonic-public/pull/25) record the thin **local HTTP adapter** on `feat/x402-http-adapter` (base `feat/arc-x402-seller`). They are event-built after the start tag and are **not** yet on `main`. Labels for #25: `local-http-integration` + `unit-fake` Gateway — **not** live Arc/Circle, Arc Studio, durable store, or public demo.
 
 | Time (IST) | Feature | What changed | Commit |
 |---|---|---|---|
@@ -31,3 +31,7 @@ Rows for draft PR [#23](https://github.com/ozzyshaik-org/world-supersonic-public
 | 2026-11-06 08:16 | Arc x402 (experimental seller-engine) | CI job, engines, scoped ignores, Circle import contract. Draft PR #23. | `684b0da` |
 | 2026-11-06 08:20 | Arc x402 (experimental seller-engine) | Waiters poll for lease holder; tighten takeover tests. Draft PR #23. | `dc761fd` |
 | 2026-11-06 12:52 | Arc x402 (experimental seller-engine) | Atomic retryable/budget CAS under original lease (race fix). Head of draft PR #23: `f79de2f`. Local/unit evidence only: 116/116 tests, five race tests, ledger-level pre-fix oracle on `dc761fd`; CI run 42180463805 success. **Not** live Arc/Circle. Pre-fix full engine-level 2xx rejection was not independently reproduced. | `f79de2f` |
+| 2026-11-06 14:31 | Arc x402 (HTTP adapter docs) | Package checkpoint docs for `f79de2f`. Draft PR #25. | `6dc242c` |
+| 2026-11-06 14:34 | Arc x402 (local HTTP) | x402 v2 payment header codecs + fast-check property tests. Draft PR #25. | `123588e` |
+| 2026-11-06 14:34 | Arc x402 (local HTTP) | HTTP upstream client: redirect reject + timeouts. Draft PR #25. | `4533d83` |
+| 2026-11-06 14:34 | Arc x402 (local HTTP) | Thin HTTP adapter + 12 local-http-integration tests (FAKE Gateway). Head of draft PR #25: `b03d41e`. Local: 137/137; planted-bug proofs for settle-order/redirect/bypass/replay/Retry-After; CI run 42192285577 success. Labels: local-http-integration + unit-fake. **Not** live Arc/Circle. | `b03d41e` |
