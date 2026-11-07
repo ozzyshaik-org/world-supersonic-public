@@ -27,6 +27,23 @@ jobs:
       # test cache so they really run on every CI job.
       - run: go test -v -count=1 ./cmd/...
 
+  ens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ens/package-lock.json
+      - run: npm ci
+        working-directory: ens
+      - run: npm run typecheck
+        working-directory: ens
+      # Unit tests only; the live Sepolia read (npm run test:live) is run manually and recorded as live-testnet-read evidence.
+      - run: npm test
+        working-directory: ens
+
   website:
     runs-on: ubuntu-latest
     steps:
