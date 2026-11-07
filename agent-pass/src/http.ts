@@ -156,8 +156,14 @@ function setSecurityHeaders(response: ServerResponse): void {
 
 function browserPostGuard(request: IncomingMessage, publicOrigin: string): void {
   const origin = request.headers.origin;
+  const fetchSite = request.headers["sec-fetch-site"];
+  if (fetchSite === "cross-site") fail("origin_forbidden", 403);
+  if (origin === "null") {
+    // no-referrer can make Chromium serialize a same-origin form Origin as null.
+    if (fetchSite !== "same-origin") fail("origin_forbidden", 403);
+    return;
+  }
   if (origin && origin !== publicOrigin) fail("origin_forbidden", 403);
-  if (request.headers["sec-fetch-site"] === "cross-site") fail("origin_forbidden", 403);
 }
 
 function authenticateAgent(request: IncomingMessage, agents: Readonly<Record<string, string>>): string {

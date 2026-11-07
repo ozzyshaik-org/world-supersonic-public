@@ -108,13 +108,21 @@ after(async () => {
 });
 
 describe("real local HTTP integration with fake OIDC", () => {
-  it("sets a protected session cookie and rejects a cross-origin state change", async () => {
-    const crossOrigin = await fetch(`${base}/demo/session`, {
-      method: "POST", headers: { origin: "https://attacker.example" }, redirect: "manual",
-    });
-    assert.equal(crossOrigin.status, 403);
+  it("sets a protected session cookie and rejects untrusted browser origins", async () => {
+    for (const headers of [
+      { origin: "https://attacker.example" },
+      { origin: "null" },
+      { origin: "null", "sec-fetch-site": "cross-site" },
+    ]) {
+      const rejected = await fetch(`${base}/demo/session`, {
+        method: "POST", headers, redirect: "manual",
+      });
+      assert.equal(rejected.status, 403);
+    }
     const response = await fetch(`${base}/demo/session`, {
-      method: "POST", headers: { origin: base }, redirect: "manual",
+      method: "POST",
+      headers: { origin: "null", "sec-fetch-site": "same-origin" },
+      redirect: "manual",
     });
     assert.equal(response.status, 303);
     cookie = response.headers.get("set-cookie")!.split(";", 1)[0]!;
