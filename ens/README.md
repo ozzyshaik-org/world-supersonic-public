@@ -22,4 +22,21 @@ Status: **experimental, read-only, first increment.** No ENS names are registere
 
 Planted-bug check (manual, at commit time): skipping normalisation, skipping key validation, or allowing single-label names each makes `npm test` fail.
 
+## x402 seller text-record schema (draft, project-defined; increment 2)
+`parseSellerRecords(resolution, policy)` turns resolved records into a typed `SellerDescriptor` or a typed `SellerError`. It is pure and makes no network calls. **Evidence tier: unit/local only.** No ENS name carries these records yet.
+
+| Key | Required | Rule |
+|---|---|---|
+| `org.x402.endpoint` | yes | Must be `https`, with no userinfo, no IP literal (IPv4 in any form, or IPv6), and not `localhost`/`*.localhost`. The host must be an exact match on the operator allowlist. A non-default port must be allowlisted for that host. |
+| `org.x402.price` | yes | Positive integer string in atomic units, `1 … 2^256-1`, no leading zeros. |
+| `org.x402.payTo` | yes | EIP-55 checksummed address, which **must equal the name's `addr` record**. |
+| `org.x402.network` | yes | CAIP-2 id in the `eip155` namespace (`eip155:<chainId>`). |
+| `url`, `description` | no | ENSIP-5 global keys, passed through. |
+
+Vendor keys use ENSIP-5 reverse-DNS notation (`org.x402.*`). This is our own convention, not an ENS or x402 standard.
+
+Limit: the guard checks the URL only. Whoever later fetches the endpoint must still pin resolved IPs and refuse private, loopback and link-local ranges, because DNS can change after this check. No fetch exists yet.
+
+Planted-bug check (manual): removing any of these checks made `npm test` fail: https, userinfo, IP literal, port, checksum, payTo-addr match, uint256 bound, or exact host match (swapped for a prefix match). A redundant trailing-dot branch survived its planted bug and was removed.
+
 This is not mainnet, not a registered name, and not wired into the seller or API yet.
